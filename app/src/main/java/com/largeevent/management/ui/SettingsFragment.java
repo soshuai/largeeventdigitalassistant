@@ -30,6 +30,7 @@ import com.largeevent.management.model.EventInfo;
 import com.largeevent.management.network.CustomHttpLogger;
 import com.largeevent.management.network.NetworkManager;
 import com.largeevent.management.network.dto.ApiResponse;
+import com.largeevent.management.network.dto.EquipmentRegisterDTO;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -69,6 +70,9 @@ public class SettingsFragment extends Fragment {
     private Set<String> pendingSelectedAreas = new HashSet<>();
     private String pendingSelectedLocationId = null;
     private String pendingSelectedZoneId = null;
+    
+    // 保存当前活动ID用于设备注册
+    private String currentActiveIdForSave = null;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -290,6 +294,7 @@ public class SettingsFragment extends Fragment {
         // 保存权限选择（无论是否为空都要保存，空集合代表全部取消选中）
         // 使用当前选中的活动ID进行保存，确保活动隔离
         String activeIdForSave = !TextUtils.isEmpty(selectedActiveId) ? selectedActiveId : AppPreferences.getLastActiveId(requireContext());
+        currentActiveIdForSave = activeIdForSave;
         AppPreferences.setSelectedSessions(requireContext(), activeIdForSave, pendingSelectedSessions);
         AppPreferences.setSelectedVenuePermissions(requireContext(), activeIdForSave, pendingSelectedVenues);
         AppPreferences.setSelectedAreaPermissions(requireContext(), activeIdForSave, pendingSelectedAreas);
@@ -305,12 +310,106 @@ public class SettingsFragment extends Fragment {
         // 通知HomeFragment更新自动初始化的服务器地址
         notifyHomeFragmentServerUrlChanged(normalized);
 
-        if (urlChanged) {
+        // 如果选择了位置，调用设备注册接口
+        if (!TextUtils.isEmpty(pendingSelectedLocationId)) {
+            Toast.makeText(requireContext(), "正在注册设备...", Toast.LENGTH_SHORT).show();
+            registerEquipmentAndRefreshBasicInfo(pendingSelectedLocationId);
+        } else if (urlChanged) {
             Toast.makeText(requireContext(), "服务器地址已变更，正在刷新基础信息", Toast.LENGTH_SHORT).show();
             fetchBasicInfo(normalized);
         } else {
             Toast.makeText(requireContext(), "设置已保存", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /**
+     * 设备注册并刷新 BasicInfo
+     */
+    private void registerEquipmentAndRefreshBasicInfo(String locationId) {
+        if (TextUtils.isEmpty(currentActiveIdForSave)) {
+            currentActiveIdForSave = AppPreferences.getLastActiveId(requireContext());
+        }
+        if (TextUtils.isEmpty(currentActiveIdForSave)) {
+            Toast.makeText(requireContext(), "活动ID为空，无法注册设备", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
+        
+        EquipmentRegisterDTO eqpRegisterDTO = new EquipmentRegisterDTO();
+        eqpRegisterDTO.activityId = currentActiveIdForSave;
+        eqpRegisterDTO.eqpID = AppPreferences.getDeviceCode(requireContext());
+        eqpRegisterDTO.locationID = locationId;
+        eqpRegisterDTO.zoneLocationID = pendingSelectedZoneId;
+        
+        retrofit2.Call<ResponseBody> call = apiService.registerEquipment(eqpRegisterDTO);
+        call.enqueue(new retrofit2.Callback<ResponseBody>() {
+            @Override
+            public void onResponse(@NonNull retrofit2.Call<ResponseBody> call, @NonNull retrofit2.Response<ResponseBody> response) {
+                if (response.isSuccessful()) {
+                    android.util.Log.i("SettingsFragment", "registerEquipment: success");
+                    // 设备注册成功后，重新获取 BasicInfo
+                    refreshBasicInfo();
+                } else {
+                    android.util.Log.w("SettingsFragment", "registerEquipment: failed, code=" + response.code());
+                    requireActivity().runOnUiThread(() -> {
+                        Toast.makeText(requireContext(), "设备注册失败", Toast.LENGTH_SHORT).show();
+                    });
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull retrofit2.Call<ResponseBody> call, @NonNull Throwable t) {
+                android.util.Log.e("SettingsFragment", "registerEquipment: onFailure", t);
+                requireActivity().runOnUiThread(() -> {
+                    Toast.makeText(requireContext(), "设备注册失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
+    /**
+     * 重新获取 BasicInfo
+     */
+    private void refreshBasicInfo() {
+        String serverUrl = AppPreferences.getServerUrl(requireContext());
+        if (TextUtils.isEmpty(serverUrl)) {
+            return;
+        }
+
+        String activityId = AppPreferences.getLastActiveId(requireContext());
+        if (TextUtils.isEmpty(activityId)) {
+            activityId = currentActiveIdForSave;
+        }
+        if (TextUtils.isEmpty(activityId)) {
+            return;
+        }
+
+        com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
+        retrofit2.Call<ResponseBody> call = apiService.getBasicInfo(activityId);
+        call.enqueue(new retrofit2.Callback<ResponseBody>() {
+            @Override
+            public void onResponse(@NonNull retrofit2.Call<ResponseBody> call, @NonNull retrofit2.Response<ResponseBody> response) {
+                if (response.isSuccessful()) {
+                    try {
+                        String json = response.body().string();
+                        repository.saveBaseInfo(serverUrl, json);
+                        requireActivity().runOnUiThread(() -> {
+                            Toast.makeText(requireContext(), "设置已保存，设备注册成功", Toast.LENGTH_SHORT).show();
+                        });
+                    } catch (Exception e) {
+                        android.util.Log.e("SettingsFragment", "refreshBasicInfo: parse error", e);
+                    }
+                } else {
+                    android.util.Log.w("SettingsFragment", "refreshBasicInfo: failed");
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull retrofit2.Call<ResponseBody> call, @NonNull Throwable t) {
+                android.util.Log.e("SettingsFragment", "refreshBasicInfo: onFailure", t);
+            }
+        });
     }
 
     // 添加通知HomeFragment服务器地址变更的方法

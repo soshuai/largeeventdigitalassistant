@@ -341,5 +341,29 @@ public class MainActivity extends AppCompatActivity {
                 })
                 .show();
     }
+
+    @Override
+    public void onBackPressed() {
+        // 获取当前显示的 Fragment
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        Fragment currentFragment = fragmentManager.findFragmentById(R.id.fragment_container);
+        
+        // 如果当前是首页，显示确认退出对话框
+        if (currentFragment instanceof HomeFragment) {
+            new AlertDialog.Builder(this)
+                    .setTitle("提示")
+                    .setMessage("确定要退出应用吗？")
+                    .setPositiveButton("确定", (dialog, which) -> {
+                        finish();
+                    })
+                    .setNegativeButton("取消", (dialog, which) -> {
+                        dialog.dismiss();
+                    })
+                    .show();
+        } else {
+            // 如果不是首页，切换到首页
+            bottomNavigationView.setSelectedItemId(R.id.nav_home);
+        }
+    }
 }
 
