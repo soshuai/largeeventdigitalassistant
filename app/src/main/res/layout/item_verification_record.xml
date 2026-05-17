@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@android:color/white"
+    android:padding="16dp"
+    android:layout_marginBottom="12dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?android:attr/selectableItemBackground">
+    <!-- 中间内容 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- 日期时间 -->
+        <TextView
+            android:id="@+id/tv_record_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="2025/12/13 09:00"
+            android:textColor="#2B2F43"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp" />
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <!-- 左侧图标 -->
+            <ImageView
+                android:id="@+id/iv_record_icon"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:src="@drawable/ic_face_placeholder"
+                 />
+            <!-- 姓名或车牌号 -->
+            <TextView
+                android:layout_marginLeft="10dp"
+                android:layout_marginTop="10dp"
+                android:layout_toRightOf="@+id/iv_record_icon"
+                android:id="@+id/tv_record_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="姓名: 张三"
+                android:textColor="#2B2F43"
+                android:textSize="12sp"
+                android:layout_marginBottom="4dp" />
+
+            <!-- 芯片号 -->
+            <TextView
+                android:layout_marginLeft="10dp"
+                android:layout_marginBottom="15dp"
+                android:layout_alignBottom="@+id/iv_record_icon"
+                android:layout_toRightOf="@+id/iv_record_icon"
+                android:id="@+id/tv_record_chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="芯片号: AU4SO"
+                android:textColor="#4A4F63"
+                android:textSize="12sp" />
+        </RelativeLayout>
+
+    </LinearLayout>
+
+    <!-- 右侧状态 -->
+    <RelativeLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="end">
+
+        <!-- 记录类型标签 -->
+        <TextView
+            android:id="@+id/tv_record_type_tag"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="人证核验"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:background="#4A90E2"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 核验结果 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_alignParentBottom="true"
+            android:layout_marginBottom="20dp">
+
+            <ImageView
+                android:id="@+id/iv_result_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_result_success"
+                android:layout_marginEnd="4dp" />
+
+            <TextView
+                android:id="@+id/tv_result_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="核验成功"
+                android:textSize="12sp"
+                android:textColor="#52C41A" />
+        </LinearLayout>
+
+        <!-- 上传状态图标 -->
+        <ImageView
+            android:id="@+id/iv_upload_status"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_card_record"
+            android:visibility="gone" />
+    </RelativeLayout>
+
+</LinearLayout>
+
+

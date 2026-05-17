@@ -1,0 +1,15 @@
+<resources>
+    <!-- Define additional styles here if needed -->
+
+    <style name="SpinnerDropDownStyle">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">#333333</item>
+        <item name="android:background">@android:color/white</item>
+    </style>
+
+    <style name="SpinnerTextStyle">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">#333333</item>
+        <item name="android:padding">12dp</item>
+    </style>
+</resources>

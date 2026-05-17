@@ -1,0 +1,66 @@
+[
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/fragment_settings.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/fragment_settings.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/fragment_person_verify.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/fragment_person_verify.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/activity_main.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/activity_person_cert_bind.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/activity_person_cert_bind.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/fragment_simple_text.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/fragment_simple_text.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/item_certificate_info.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/item_certificate_info.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/activity_verification_detail.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/activity_verification_detail.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/fragment_home.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/fragment_home.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/item_verification_record.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/item_verification_record.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/activity_certificate_list.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/activity_certificate_list.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/activity_data_detail_entry.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/activity_data_detail_entry.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/activity_car_plate_bind.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/activity_car_plate_bind.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/activity_event_settings.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/activity_event_settings.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/activity_record.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/activity_record.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/spinner_dropdown_item.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/spinner_dropdown_item.xml"
+    },
+    {
+        "merged": "com.largeevent.management.app-mergeDebugResources-30:/layout/fragment_vehicle_verify.xml",
+        "source": "com.largeevent.management.app-main-33:/layout/fragment_vehicle_verify.xml"
+    }
+]

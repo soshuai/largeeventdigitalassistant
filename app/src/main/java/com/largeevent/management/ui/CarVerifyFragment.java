@@ -1,0 +1,801 @@
+package com.largeevent.management.ui;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.TextUtils;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import com.google.gson.Gson;
+import com.handheld.uhfr.UHFRManager;
+import com.largeevent.management.R;
+import com.largeevent.management.CarAndPersonDetailActivity;
+import com.largeevent.management.RecordActivity;
+import com.largeevent.management.data.*;
+import com.largeevent.management.model.*;
+import com.largeevent.management.network.dto.ApiResponse;
+import com.largeevent.management.network.dto.CarCertificateDTO;
+import com.largeevent.management.nfc.NfcCallback;
+import com.largeevent.management.network.*;
+import com.largeevent.management.widget.CommonConfig;
+import com.uhf.api.cls.Reader;
+import com.largeevent.management.model.BasicInfo.*;
+
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.StrUtil;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+/**
+ * 车证核验
+ */
+public class CarVerifyFragment extends BaseFragment implements NfcCallback {
+
+    private static final String TAG = "VehicleVerifyFragment";
+    private static final String DEFAULT_REQUIRED_ZONE = "车辆区";
+
+    private TextView tvVehicleStatus;
+    private Button btnVerify;
+    private InitializationRepository initializationRepository;
+    private String currentChipId;
+    private CarCertificateDTO currentCarDTO;  // 当前车证DTO
+    private boolean verifying;
+    private final List<String> currentEpcList = new ArrayList<>();
+    private boolean isReading = false;
+    private UHFRManager uhfManager;
+    private ExecutorService inventoryExecutor;
+    private Handler mainHandler;
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_vehicle_verify, container, false);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        tvVehicleStatus = view.findViewById(R.id.tv_vehicle_status);
+        btnVerify = view.findViewById(R.id.btn_vehicle_verify);
+        initializationRepository = new InitializationRepository(requireContext());
+        inventoryExecutor = Executors.newSingleThreadExecutor();
+        mainHandler = new Handler(Looper.getMainLooper());
+
+        view.findViewById(R.id.card_vehicle_rfid).setOnClickListener(v -> startUhfInventory());
+        view.findViewById(R.id.tv_vehicle_history).setOnClickListener(v -> {
+            Intent intent = new Intent(requireContext(), RecordActivity.class);
+            intent.putExtra(CommonConfig.EXTRA_IS_CAR, true);
+            startActivity(intent);
+        });
+        btnVerify.setOnClickListener(v -> startVerification());
+
+        // 检查是否已初始化
+        checkInitializationStatus();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 每次页面显示时都检查初始化状态
+        checkInitializationStatus();
+    }
+
+    /**
+     * 检查初始化状态
+     */
+    private void checkInitializationStatus() {
+        boolean isInitialized = isAppInitialized();
+
+        if (!isInitialized) {
+            // 未初始化，禁用核验功能
+            if (btnVerify != null) {
+                btnVerify.setEnabled(false);
+                btnVerify.setText("请先初始化");
+            }
+            if (tvVehicleStatus != null) {
+                tvVehicleStatus.setText("请先到首页完成初始化");
+            }
+        } else {
+            // 已初始化，恢复正常状态
+            if (btnVerify != null) {
+                btnVerify.setEnabled(true);
+                btnVerify.setText("开始核验");
+            }
+            if (tvVehicleStatus != null && tvVehicleStatus.getText().toString().contains("请先到首页")) {
+                tvVehicleStatus.setText("请点击上方按钮读取车证");
+            }
+        }
+    }
+
+    /**
+     * 检查应用是否已初始化
+     */
+    private boolean isAppInitialized() {
+        // 检查是否有 activeId
+        String activeId = AppPreferences.getLastActiveId(requireContext());
+        if (!TextUtils.isEmpty(activeId)) {
+            return true;
+        }
+
+        // 检查数据库中是否有数据
+        try {
+            if (initializationRepository != null && initializationRepository.hasData()) {
+                return true;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to check initialization status", e);
+        }
+
+        return false;
+    }
+
+    private void startUhfInventory() {
+        // 检查是否已初始化
+        if (!isAppInitialized()) {
+            Toast.makeText(requireContext(), "请先到首页完成初始化", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        if (isReading) {
+            Toast.makeText(requireContext(), "正在读取中，请稍候...", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        isReading = true;
+        tvVehicleStatus.setText("正在读取车证...");
+        inventoryExecutor.execute(() -> {
+            List<String> newEpcList = new ArrayList<>();
+            if (false){
+                //TODO 测试
+                newEpcList.add("E28011B0A503007A28B8EE2C");
+            }else{
+                if (!ensureUhfReady()) {
+                    postInventoryResult(new ArrayList<>(), "UHF模块初始化失败");
+                    return;
+                }
+                try {
+                    List<Reader.TAGINFO> tagInfos = uhfManager.tagInventoryRealTime();
+                    if (tagInfos == null || tagInfos.isEmpty()) {
+                        tagInfos = uhfManager.tagInventoryByTimer((short) 50);
+                    }
+                    if (tagInfos != null) {
+                        for (Reader.TAGINFO info : tagInfos) {
+                            String epc = bytesToHex(info.EpcId);
+                            if (!TextUtils.isEmpty(epc) && !newEpcList.contains(epc) && (epc.contains("e") || epc.contains("E"))) {
+                                newEpcList.add(epc);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    postInventoryResult(new ArrayList<>(), "读取失败：" + e.getMessage());
+                    return;
+                }
+            }
+            postInventoryResult(newEpcList, newEpcList.isEmpty() ? "未读取到车证信息" : null);
+        });
+    }
+
+    private void postInventoryResult(List<String> epcs, @Nullable String errorMsg) {
+        mainHandler.post(() -> {
+            isReading = false;
+            currentEpcList.clear();
+            currentEpcList.addAll(epcs);
+            if (epcs.isEmpty()) {
+                tvVehicleStatus.setText("未读取到车证");
+                if (!TextUtils.isEmpty(errorMsg)) {
+                    Toast.makeText(requireContext(), errorMsg, Toast.LENGTH_SHORT).show();
+                }
+                return;
+            }
+            currentChipId = epcs.get(0);
+            tvVehicleStatus.setText("已读取芯片：" + currentChipId);
+            if (!TextUtils.isEmpty(errorMsg)) {
+                Toast.makeText(requireContext(), errorMsg, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private boolean ensureUhfReady() {
+        if (uhfManager != null) {
+            return true;
+        }
+        try {
+            uhfManager = UHFRManager.getInstance();
+        } catch (Exception e) {
+            uhfManager = null;
+        }
+        if (uhfManager == null) {
+            return false;
+        }
+        try {
+            Reader.READER_ERR err = uhfManager.setPower(30, 30);
+            if (err != Reader.READER_ERR.MT_OK_ERR) {
+                return false;
+            }
+            try {
+                uhfManager.setRegion(Reader.Region_Conf.RG_PRC);
+            } catch (Exception ignored) {
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        return true;
+    }
+
+    private String bytesToHex(byte[] data) {
+        if (data == null || data.length == 0) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(data.length * 2);
+        for (byte b : data) {
+            sb.append(String.format("%02X", b));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 获取最近一次读取到的 EPC 列表，便于其它功能使用
+     */
+    @NonNull
+    public List<String> getCurrentEpcList() {
+        return new ArrayList<>(currentEpcList);
+    }
+
+    private void startVerification() {
+        if (verifying)
+            return;
+
+        // 检查是否已初始化
+        if (!isAppInitialized()) {
+            Toast.makeText(requireContext(), "请先到首页完成初始化", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        if (TextUtils.isEmpty(currentChipId)) {
+            Toast.makeText(requireContext(), "请先读取车证", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 调用接口查询车证信息
+        setVerifying(true);
+        queryVehicleCertByChipId(currentChipId);
+    }
+
+    /**
+     * 调用 /android/getActiveCarCert 接口查询车证信息
+     */
+    private void queryVehicleCertByChipId(String chipId) {
+        // 获取 activeId，优先从 SharedPreferences 读取（设置页/Home 初始化时已保存活动ID）
+        String activeId = AppPreferences.getLastActiveId(requireContext());
+
+        if (TextUtils.isEmpty(activeId)) {
+            setVerifying(false);
+            String errorMsg = "无效证件";
+            uploadCheckRecordWithChipId(chipId, false, errorMsg);
+            recordAndOpen(new VerificationResult(VerificationResultType.INVALID_CERT, "未初始化", "请先完成初始化", null, false, null, true));
+            return;
+        }
+
+        // 使用 ApiService 调用接口，传入 activeId 和 chipId
+        ApiService apiService = NetworkManager.getInstance().getApiService();
+        Call<ApiResponse<List<CarCertificateDTO>>> call = apiService.getActiveCarCert(activeId, chipId);
+
+        call.enqueue(new Callback<ApiResponse<List<CarCertificateDTO>>>() {
+            @Override
+            public void onResponse(@NonNull Call<ApiResponse<List<CarCertificateDTO>>> call, @NonNull Response<ApiResponse<List<CarCertificateDTO>>> response) {
+                if (!isAdded())
+                    return;
+                requireActivity().runOnUiThread(() -> {
+                    if (!response.isSuccessful() || response.body() == null) {
+                        setVerifying(false);
+                        String errorMsg = "无效证件";
+                        // 上传失败记录（服务器错误）
+                        uploadCheckRecordWithChipId(chipId, false, errorMsg);
+                        recordAndOpen(new VerificationResult(VerificationResultType.INVALID_CERT, "服务器错误", "查询车证信息失败，状态码：" + response.code(), null, false, null, true));
+                        return;
+                    }
+
+                    ApiResponse<List<CarCertificateDTO>> apiResponse = response.body();
+                    if (!apiResponse.isSuccess()) {
+                        setVerifying(false);
+                        String errorMsg = "无效证件";
+                        // 上传失败记录（查询失败）
+                        uploadCheckRecordWithChipId(chipId, false, errorMsg);
+                        recordAndOpen(new VerificationResult(VerificationResultType.INVALID_CERT, "查询失败", apiResponse.getMessage(), null, false, null, true));
+                        return;
+                    }
+
+                    List<CarCertificateDTO> carList = apiResponse.getData();
+                    if (carList == null || carList.isEmpty()) {
+                        setVerifying(false);
+                        String errorMsg = "无效证件";
+                        // 上传失败记录（未找到车证）
+                        uploadCheckRecordWithChipId(chipId, false, errorMsg);
+                        recordAndOpen(new VerificationResult(VerificationResultType.INVALID_CERT, "无效证件", "系统中未找到该车证信息", null, false, null, true));
+                        return;
+                    }
+
+                    // 获取第一条数据
+                    CarCertificateDTO carDTO = carList.get(0);
+                    currentCarDTO = carDTO;  // 保存当前DTO
+                    CertificateInfo info = CarCertificateParser.buildCertificateInfo(carDTO, chipId);
+                    // 检查车牌号是否为空
+                    if (TextUtils.isEmpty(carDTO.carPlate)) {
+                        // 车牌未绑定，需要绑定
+                        setVerifying(false);
+                        recordAndOpen(new VerificationResult(VerificationResultType.BIND_REQUIRED, "车牌未绑定", "车证信息匹配，车牌已自动绑定", info, true, chipId, true), carDTO);  // 传递 carDTO
+                        uploadCheckRecord(info, false,  "未绑定");
+                        return;
+                    }
+                    // 继续后续验证流程
+                    continueVerification(info);
+                });
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<ApiResponse<List<CarCertificateDTO>>> call, @NonNull Throwable t) {
+                if (!isAdded())
+                    return;
+                requireActivity().runOnUiThread(() -> {
+                    setVerifying(false);
+                    String errorMsg = "无效证件";
+                    // 上传失败记录（网络错误）
+                    uploadCheckRecordWithChipId(currentChipId, false, errorMsg);
+                    recordAndOpen(new VerificationResult(VerificationResultType.INVALID_CERT, "网络错误", "查询车证信息失败：" + t.getMessage(), null, false, null, true));
+                });
+            }
+        });
+    }
+
+    /**
+     * 继续后续验证流程（权限校验）
+     */
+    private void continueVerification(CertificateInfo info) {
+        if (info == null) {
+            setVerifying(false);
+            // 上传失败记录
+            uploadCheckRecord(null, false, "无效证件");
+            recordAndOpen(new VerificationResult(VerificationResultType.INVALID_CERT, "无效证件", "车证信息解析失败", null, false, null, true));
+            return;
+        }
+
+        // 1. 验证注销状态（eventStatus=6 表示已注销）
+        if (currentCarDTO != null && !TextUtils.isEmpty(currentCarDTO.eventStatus)) {
+            if ("6".equals(currentCarDTO.eventStatus)) {
+                setVerifying(false);
+                uploadCheckRecord(info, false, "证件已注销");
+                recordAndOpen(new VerificationResult(VerificationResultType.CANCELED, "证件已注销", "该车证已被注销，禁止通行", info, false, null, true));
+                return;
+            }
+        }
+
+        // 2. 验证证件是否挂失
+        if (currentCarDTO != null && !TextUtils.isEmpty(currentCarDTO.isLost)) {
+            if ("1".equals(currentCarDTO.isLost)) {
+                setVerifying(false);
+                uploadCheckRecord(info, false, "证件已挂失");
+                recordAndOpen(new VerificationResult(VerificationResultType.BLACKLIST, "限制通行", "该车证已被挂失，禁止通行", info, false, null, true));
+                return;
+            }
+        }
+
+        // 3. 验证激活状态（eventStatus!=5 表示未激活）
+        if (currentCarDTO != null && !TextUtils.isEmpty(currentCarDTO.eventStatus)) {
+            if (!"5".equals(currentCarDTO.eventStatus)) {
+                setVerifying(false);
+                uploadCheckRecord(info, false, "证件未激活");
+                recordAndOpen(new VerificationResult(VerificationResultType.NOT_ACTIVATED, "证件未激活", "该车证尚未激活，禁止通行", info, false, null, true));
+                return;
+            }
+        }
+
+        // 4. 验证有效期（startTime 和 endTime）
+        if (currentCarDTO != null) {
+            if (!isValidPeriod(currentCarDTO.startTime, currentCarDTO.endTime)) {
+                setVerifying(false);
+                uploadCheckRecord(info, false, "证件已过期");
+                recordAndOpen(new VerificationResult(VerificationResultType.EXPIRED, "证件已过期", "该车证不在有效期内", info, false, null, true));
+                return;
+            }
+        }
+
+        // 3. 检查是否需要绑定（车证一般不需要绑定，这里保留逻辑以防万一）
+        boolean bound = info.isBound() || VehicleBindingStore.isBound(info.chipId);
+        if (info.isNeedBinding() && !bound) {
+            setVerifying(false);
+            // 上传失败记录
+            uploadCheckRecord(info, false, "未绑定");
+            recordAndOpen(new VerificationResult(VerificationResultType.BIND_REQUIRED, "车牌未绑定", "请绑定车牌后再尝试", info, true, info.chipId, true));
+            return;
+        }
+
+        // 4. 检查权限（优先使用 accessAuthority，其次使用 area）
+        String requiredDesc = getRequiredPermissionSummary(currentCarDTO);
+        if (StrUtil.isNotEmpty(requiredDesc)) {
+            setVerifying(false);
+            // 上传失败记录
+            uploadCheckRecord(info, false,  "权限不足");
+            recordAndOpen(new VerificationResult(VerificationResultType.PERMISSION_DENIED, "证件权限不足", "", info, false, null, true));
+            return;
+        }
+
+        // 核验通过
+        setVerifying(false);
+
+        // 上传成功记录
+        uploadCheckRecord(info, true, "核验通过: 车辆信息匹配，车证有效");
+
+        recordAndOpen(new VerificationResult(VerificationResultType.PASS, "核验通过", "车辆信息匹配，车证有效", info, false, null, true));
+    }
+
+    /**
+     * 上传车证核验记录
+     *
+     * @param info        证件信息
+     * @param checkStatus 验证状态（true=通过，false=不通过）
+     * @param errorMsg    核验结果信息
+     */
+    private void uploadCheckRecord(CertificateInfo info, boolean checkStatus, String errorMsg) {
+        if (currentCarDTO == null) {
+            // 如果没有 DTO，使用芛片号上传
+            uploadCheckRecordWithChipId(currentChipId, checkStatus, errorMsg);
+            return;
+        }
+
+        try {
+            // 构造核验记录对象
+            com.largeevent.management.network.dto.CarCertificateCheckDTO checkDTO = new com.largeevent.management.network.dto.CarCertificateCheckDTO();
+
+            // 设置基本信息
+            checkDTO.tagNo1 = currentCarDTO.tagNo1;
+            checkDTO.carPlate = currentCarDTO.carPlate;
+            checkDTO.organization = currentCarDTO.organization;
+            checkDTO.responsibilityPhone = currentCarDTO.responsibilityPhone;
+            checkDTO.cardType = currentCarDTO.cardType;
+
+            // 设置验证状态（1=通过，0=不通过）
+            checkDTO.checkStatus = checkStatus ? 1 : 0;
+
+            // 设置设备信息（从共享配置中获取）
+            checkDTO.deviceCode = AppPreferences.getDeviceCode(requireContext());
+            checkDTO.location = AppPreferences.getDeviceLocation(requireContext());
+
+            // 设置通行时间
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA);
+            checkDTO.passTime = sdf.format(new Date());
+
+            // 设置方向（默认为“进”）
+            checkDTO.direction = "进";
+
+            // 设置核验结果信息
+            checkDTO.errorMsg = errorMsg;
+
+            // 获取活动信息和车证有效时间
+            try {
+                String activeId = AppPreferences.getLastActiveId(requireContext());
+                checkDTO.activeId = activeId;
+
+                // 从 CarCertificateDTO 获取停车区域和有效时间
+                checkDTO.parkingArea = currentCarDTO.parkingArea;
+                checkDTO.startTime = currentCarDTO.startTime;
+                checkDTO.endTime = currentCarDTO.endTime;
+            } catch (Exception e) {
+                Log.w(TAG, "获取活动信息或车证有效时间失败: " + e.getMessage());
+            }
+
+            // 将对象转为 JSON 数组字符串
+            com.google.gson.Gson gson = new com.google.gson.Gson();
+            List<com.largeevent.management.network.dto.CarCertificateCheckDTO> list = new ArrayList<>();
+            list.add(checkDTO);
+            String jsonData = gson.toJson(list);
+
+            Log.d(TAG, "上传车证核验记录: " + jsonData);
+
+            // 将JSON字符串封装到Map中，作为data参数
+            Map<String, String> requestMap = new HashMap<>();
+            requestMap.put("data", jsonData);
+
+            // 调用接口上传
+            ApiService apiService = NetworkManager.getInstance().getApiService();
+            retrofit2.Call<okhttp3.ResponseBody> call = apiService.receiveCheckCar(requestMap);
+
+            call.enqueue(new retrofit2.Callback<okhttp3.ResponseBody>() {
+                @Override
+                public void onResponse(@NonNull retrofit2.Call<okhttp3.ResponseBody> call, @NonNull retrofit2.Response<okhttp3.ResponseBody> response) {
+                    if (response.isSuccessful()) {
+                        Log.d(TAG, "车证核验记录上传成功");
+                    } else {
+                        Log.e(TAG, "车证核验记录上传失败: " + response.code());
+                    }
+                }
+
+                @Override
+                public void onFailure(@NonNull retrofit2.Call<okhttp3.ResponseBody> call, @NonNull Throwable t) {
+                    Log.e(TAG, "车证核验记录上传失败", t);
+                }
+            });
+
+        } catch (Exception e) {
+            Log.e(TAG, "构造车证核验记录失败", e);
+        }
+    }
+
+    /**
+     * 使用芯片号上传车证核验记录（当没有完整车证信息时）
+     *
+     * @param chipId      芛片号
+     * @param checkStatus 验证状态（true=通过，false=不通过）
+     * @param errorMsg    核验结果信息
+     */
+    private void uploadCheckRecordWithChipId(String chipId, boolean checkStatus, String errorMsg) {
+        if (TextUtils.isEmpty(chipId)) {
+            return;
+        }
+
+        try {
+            // 构造核验记录对象（只有芯片号）
+            com.largeevent.management.network.dto.CarCertificateCheckDTO checkDTO = new com.largeevent.management.network.dto.CarCertificateCheckDTO();
+
+            // 设置芯片号
+            checkDTO.tagNo1 = chipId;
+
+            // 设置验证状态（1=通过，0=不通过）
+            checkDTO.checkStatus = checkStatus ? 1 : 0;
+
+            // 设置设备信息
+            checkDTO.deviceCode = AppPreferences.getDeviceCode(requireContext());
+            checkDTO.location = AppPreferences.getDeviceLocation(requireContext());
+
+            // 设置通行时间
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA);
+            checkDTO.passTime = sdf.format(new Date());
+
+            // 设置方向
+            checkDTO.direction = "进";
+
+            // 设置核验结果信息
+            checkDTO.errorMsg = errorMsg;
+
+            // 获取活动信息（无车证信息，只能获取活动相关）
+            String activeId = AppPreferences.getLastActiveId(requireContext());
+            checkDTO.activeId = activeId;
+
+            // 将对象转为 JSON 数组字符串
+            com.google.gson.Gson gson = new com.google.gson.Gson();
+            List<com.largeevent.management.network.dto.CarCertificateCheckDTO> list = new ArrayList<>();
+            list.add(checkDTO);
+            String jsonData = gson.toJson(list);
+
+            Log.d(TAG, "上传车证核验记录（仅芯片号）: " + jsonData);
+
+            // 将JSON字符串封装到Map中，作为data参数
+            Map<String, String> requestMap = new HashMap<>();
+            requestMap.put("data", jsonData);
+
+            // 调用接口上传
+            ApiService apiService = NetworkManager.getInstance().getApiService();
+            retrofit2.Call<okhttp3.ResponseBody> call = apiService.receiveCheckCar(requestMap);
+
+            call.enqueue(new retrofit2.Callback<okhttp3.ResponseBody>() {
+                @Override
+                public void onResponse(@NonNull retrofit2.Call<okhttp3.ResponseBody> call, @NonNull retrofit2.Response<okhttp3.ResponseBody> response) {
+                    if (response.isSuccessful()) {
+                        Log.d(TAG, "车证核验记录上传成功（仅芯片号）");
+                    } else {
+                        Log.e(TAG, "车证核验记录上传失败: " + response.code());
+                    }
+                }
+
+                @Override
+                public void onFailure(@NonNull retrofit2.Call<okhttp3.ResponseBody> call, @NonNull Throwable t) {
+                    Log.e(TAG, "车证核验记录上传失败", t);
+                }
+            });
+
+        } catch (Exception e) {
+            Log.e(TAG, "构造车证核验记录失败（仅芯片号）", e);
+        }
+    }
+
+    /**
+     * 验证有效期
+     * 如果开始时间和结束时间为空，证件就是长期有效
+     */
+    private boolean isValidPeriod(String startTime, String endTime) {
+        // 如果开始时间和结束时间都为空，认为长期有效
+        if (TextUtils.isEmpty(startTime) && TextUtils.isEmpty(endTime)) {
+            return true;
+        }
+
+        try {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+            Date now = new Date();
+
+            // 如果有开始时间，验证是否已开始
+            if (!TextUtils.isEmpty(startTime)) {
+                Date begin = sdf.parse(startTime);
+                if (begin != null && now.before(begin)) {
+                    return false;  // 还未开始
+                }
+            }
+
+            // 如果有结束时间，验证是否已过期
+            if (!TextUtils.isEmpty(endTime)) {
+                Date end = sdf.parse(endTime);
+                if (end != null && now.after(end)) {
+                    return false;  // 已过期
+                }
+            }
+
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "Validate period failed", e);
+            // 验证失败，默认为有效
+            return true;
+        }
+    }
+
+    private void setVerifying(boolean value) {
+        verifying = value;
+        if (btnVerify != null) {
+            btnVerify.setEnabled(!value);
+            btnVerify.setText(value ? "核验中..." : "开始核验");
+        }
+    }
+
+
+    private void recordAndOpen(VerificationResult result) {
+        recordAndOpen(result, currentCarDTO);  // 使用当前的 currentCarDTO
+    }
+
+    private void recordAndOpen(VerificationResult result, @Nullable CarCertificateDTO carDTO) {
+        Intent intent = new Intent(requireContext(), CarAndPersonDetailActivity.class);
+        intent.putExtra(CarAndPersonDetailActivity.EXTRA_RESULT, result);
+
+        // 如果有 carDTO，总是传递给 VerificationDetailActivity（用于显示车证权限）
+        if (carDTO != null) {
+            intent.putExtra("car_dto", carDTO);
+        }
+        intent.putExtra(CommonConfig.EXTRA_IS_CAR, true);
+        startActivity(intent);
+    }
+
+    private String getRequiredPermissionSummary(CarCertificateDTO carDTO) {
+        if (carDTO == null) {
+            return "无车辆信息";
+        }
+
+        try {
+            // 获取 BasicInfo 对象
+            BasicInfo basicInfo = initializationRepository.getBasicInfo();
+            if (basicInfo == null) {
+                Log.w(TAG, "getRequiredPermissionSummary: BasicInfo为null");
+                return "未初始化";
+            }
+
+            // 获取设备配置的场馆和区域（配置中保存的是名称，使用当前活动ID确保活动隔离）
+            String currentActiveId = AppPreferences.getLastActiveId(requireContext());
+            Set<String> configuredVenues = AppPreferences.getSelectedVenuePermissions(requireContext(), currentActiveId);
+            Log.d(TAG, "getRequiredPermissionSummary - 配置的场馆（名称）: " + (configuredVenues != null ? configuredVenues.toString() : "null"));
+            // 获取车证的场馆和区域
+            String areaField = carDTO.area;  // 场馆权限
+            Log.d(TAG, "getRequiredPermissionSummary - 车证area字段(场馆): " + areaField);
+            // 检查场馆权限：将配置的场馆与车证的area进行比较
+            if (configuredVenues != null && !configuredVenues.isEmpty()) {
+                // 将配置的场馆名称转换为 venueCode 集合
+                Set<String> configuredVenueCodes = new HashSet<>();
+                List<ActiveVenueModel> allVenues = basicInfo.getActiveVenues();
+
+                if (allVenues != null) {
+                    for (String configuredVenueName : configuredVenues) {
+                        for (ActiveVenueModel v : allVenues) {
+                            if (v != null && configuredVenueName.equals(v.venueName)) {
+                                configuredVenueCodes.add(v.venueCode);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // 解析车证的 area 字段
+                Set<String> certVenueCodes = new HashSet<>();
+                if (!TextUtils.isEmpty(areaField)) {
+                    String[] venueCodes = areaField.split(",");
+                    for (String code : venueCodes) {
+                        certVenueCodes.add(code.trim());
+                    }
+                }
+
+                // 找出配置中有但车证没有的场馆
+                boolean containsed = CollUtil.containsAny(configuredVenueCodes, certVenueCodes);
+                if (!containsed) {
+                    return "缺少场馆权限";
+                }
+                //                for (String configCode : configuredVenueCodes) {
+                //                    if (!certVenueCodes.contains(configCode)) {
+                //                        // 将 venueCode 转换为 venueName 显示
+                //                        String venueName = configCode;
+                //                        if (allVenues != null) {
+                //                            for (ActiveVenueModel v : allVenues) {
+                //                                if (v != null && configCode.equals(v.venueCode)) {
+                //                                    venueName = v.venueName != null ? v.venueName : v.venueCode;
+                //                                    break;
+                //                                }
+                //                            }
+                //                        }
+                //                        Log.d(TAG, "缺少场馆权限: " + venueName);
+                //                        return "缺少场馆权限";
+                //                    }
+                //                }
+            }
+            Set<String> configuredAreas = AppPreferences.getSelectedAreaPermissions(requireContext(), currentActiveId);
+            Log.d(TAG, "设备配置的区域（名称）: " + (configuredAreas != null ? configuredAreas.toString() : "null"));
+            String parkingAreaField = carDTO.parkingArea;  // 区域权限
+            Log.d(TAG, "车证parkingArea字段(区域): " + parkingAreaField);
+            List<CertTypeModel> carCertTypes = basicInfo.getCarCertTypes();
+            Log.d(TAG, "系统总的车证区域: " + new Gson().toJson(carCertTypes));
+            Set<String> collect = new HashSet<>();
+            configuredAreas.stream().forEach(it -> {
+                Optional<CertTypeModel> first = carCertTypes.stream().filter(cert -> StrUtil.equals(cert.dictValue, it)).findFirst();
+                if (first.isPresent()) {
+                    collect.add(first.get().dictCode);
+                }
+            });
+            // 找出配置中有但车证没有的区域
+            String[] areaArray = StrUtil.splitToArray(parkingAreaField, ',');
+            Set<String> userAreas = CollUtil.newHashSet(areaArray);
+            boolean containsed = CollUtil.containsAny(collect, userAreas);
+            if (!containsed) {
+                return "缺少区域权限";
+            }
+            return "";
+        } catch (Exception e) {
+            Log.e(TAG, "获取所需权限失败", e);
+            return "获取所需权限失败";
+        }
+    }
+
+    @Override
+    public void onTagDetected(String tagId, String[] techList) {
+        currentChipId = tagId;
+        if (tvVehicleStatus != null) {
+            tvVehicleStatus.setText("已读取芯片：" + tagId);
+        }
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (initializationRepository != null) {
+            initializationRepository.close();
+            initializationRepository = null;
+        }
+        if (inventoryExecutor != null) {
+            inventoryExecutor.shutdownNow();
+            inventoryExecutor = null;
+        }
+        if (uhfManager != null) {
+            try {
+                uhfManager.close();
+            } catch (Exception ignored) {
+            }
+            uhfManager = null;
+        }
+    }
+}
+
+
