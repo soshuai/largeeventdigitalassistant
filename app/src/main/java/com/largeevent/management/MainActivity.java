@@ -47,10 +47,10 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         
         // 检查软件使用时间限制（1周）
-//        if (!checkAppTimeLimit()) {
-//            showExpiredDialog();
-//            return;
-//        }
+        if (!checkAppTimeLimit()) {
+            showExpiredDialog();
+            return;
+        }
         
         setContentView(R.layout.activity_main);
 
@@ -307,26 +307,23 @@ public class MainActivity extends AppCompatActivity {
     }
     
     /**
-     * 检查软件使用时间限制（1周）
+     * 检查软件使用时间限制（从2026年5月17日开始，一个月）
      * @return true=未过期，false=已过期
      */
     private boolean checkAppTimeLimit() {
-        SharedPreferences prefs = getSharedPreferences("app_config", MODE_PRIVATE);
-        long firstInstallTime = prefs.getLong("first_install_time", 0L);
+        // 设置起始日期为 2026年5月17日 00:00:00
+        java.util.Calendar startCalendar = java.util.Calendar.getInstance();
+        startCalendar.set(2026, java.util.Calendar.MAY, 17, 0, 0, 0);
+        startCalendar.set(java.util.Calendar.MILLISECOND, 0);
+        long startTime = startCalendar.getTimeInMillis();
         
-        // 如果是首次运行，记录安装时间
-        if (firstInstallTime == 0L) {
-            firstInstallTime = System.currentTimeMillis();
-            prefs.edit().putLong("first_install_time", firstInstallTime).apply();
-            Log.d(TAG, "首次运行，记录安装时间: " + new java.util.Date(firstInstallTime));
-        }
-        
-        // 计算已经过去的天数
+        // 计算当前时间与起始时间的天数差
         long currentTime = System.currentTimeMillis();
-        long timeDiff = currentTime - firstInstallTime;
+        long timeDiff = currentTime - startTime;
         long daysPassed = timeDiff / (1000L * 60 * 60 * 24);
-        // 如果超过 5 天，返回 false
-        return daysPassed < 7;
+        
+        // 如果超过 30 天（一个月），返回 false
+        return daysPassed < 30;
     }
     
     /**
@@ -335,7 +332,7 @@ public class MainActivity extends AppCompatActivity {
     private void showExpiredDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("软件使用期限已到")
-                .setMessage("此应用的使用期限已经过期（1周），无法继续使用。")
+                .setMessage("此应用的使用期限已经过期（一个月），无法继续使用。")
                 .setCancelable(false)
                 .setPositiveButton("确定", (dialog, which) -> {
                     // 关闭应用

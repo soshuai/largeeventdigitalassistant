@@ -15,6 +15,7 @@ import com.largeevent.management.model.BasicInfo.PositionModel;
 import com.largeevent.management.model.BasicInfo.LocationInfo;
 import com.largeevent.management.model.BasicInfo.MatrixAuthInfo;
 import com.largeevent.management.model.BasicInfo.EpidemicInfo;
+import com.largeevent.management.model.BasicInfo.VenueInfo;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -27,14 +28,14 @@ class BasicInfoParser {
 
     static BasicInfo parse(String payload) throws JSONException {
         if (TextUtils.isEmpty(payload)) {
-            return new BasicInfo(null, null, null, null, null, null, null, null, null, null);
+            return new BasicInfo(null, null, null, null, null, null, null, null, null, null, null);
         }
         JSONObject root = new JSONObject(payload);
         if (root.has("data")) {
             root = root.optJSONObject("data");
         }
         if (root == null) {
-            return new BasicInfo(null, null, null, null, null, null, null, null, null, null);
+            return new BasicInfo(null, null, null, null, null, null, null, null, null, null, null);
         }
         
         List<ActiveModel> activeModels = parseActiveModels(root.optJSONArray("activeModelList"));
@@ -48,9 +49,10 @@ class BasicInfoParser {
         List<LocationInfo> locationInfoList = parseLocationInfoList(root.optJSONArray("locationInfoList"));
         List<MatrixAuthInfo> matrixAuthInfoList = parseMatrixAuthInfoList(root.optJSONArray("matrixAuthInfoList"));
         List<EpidemicInfo> epidemicInfoList = parseEpidemicInfoList(root.optJSONArray("epidemicInfoList"));
+        List<VenueInfo> venueInfoList = parseVenueInfoList(root.optJSONArray("venueInfoList"));
         
         return new BasicInfo(activeModels, venueModels, positions, passRules, cartTypes, 
-                personCertTypes, carCertTypes, locationInfoList, matrixAuthInfoList, epidemicInfoList);
+                personCertTypes, carCertTypes, locationInfoList, matrixAuthInfoList, epidemicInfoList, venueInfoList);
     }
 
     private static List<ActiveModel> parseActiveModels(JSONArray array) {
@@ -285,6 +287,30 @@ class BasicInfoParser {
                     obj.optString("activityCode"),
                     obj.optString("rfu"),
                     obj.optString("eqpId")
+            ));
+        }
+        return list;
+    }
+
+    private static List<VenueInfo> parseVenueInfoList(JSONArray array) {
+        List<VenueInfo> list = new ArrayList<>();
+        if (array == null) return list;
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject obj = array.optJSONObject(i);
+            if (obj == null) continue;
+            list.add(new VenueInfo(
+                    obj.optString("id"),
+                    obj.optString("createBy"),
+                    obj.optString("createTime"),
+                    obj.optString("updateBy"),
+                    obj.optString("updateTime"),
+                    obj.has("isDeleted") ? obj.optInt("isDeleted") : null,
+                    obj.optString("remark"),
+                    obj.optString("dictType"),
+                    obj.optString("dictCode"),
+                    obj.optString("dictValue"),
+                    obj.has("sortNumber") ? obj.optInt("sortNumber") : null,
+                    obj.has("isLocked") ? obj.optInt("isLocked") : null
             ));
         }
         return list;

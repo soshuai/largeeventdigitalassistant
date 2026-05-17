@@ -75,13 +75,36 @@
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
-            <com.largeevent.management.widget.FlowLayout
+            <Spinner
+                android:id="@+id/spinner_location"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_outline_button2"
+                android:paddingLeft="12dp"
+                android:paddingRight="12dp" />
+
+            <TextView
                 android:visibility="visible"
-                android:id="@+id/container_location"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:background="#526EA1"
+                android:gravity="center"
+                android:padding="7dp"
+                android:text="设备所在分区"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <Spinner
+                android:id="@+id/spinner_zone"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
                 android:layout_marginTop="8dp"
-                android:padding="4dp" />
+                android:background="@drawable/bg_outline_button2"
+                android:paddingLeft="12dp"
+                android:paddingRight="12dp" />
 
             <TextView
                 android:layout_width="match_parent"
@@ -100,6 +123,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
                 <TextView
+                    android:visibility="gone"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
@@ -115,6 +139,7 @@
                     android:padding="4dp" />
 
                 <TextView
+                    android:visibility="gone"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
@@ -123,6 +148,7 @@
                     android:textSize="14sp" />
 
                 <com.largeevent.management.widget.FlowLayout
+                    android:visibility="gone"
                     android:id="@+id/container_area_permissions"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

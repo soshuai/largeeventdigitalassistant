@@ -798,18 +798,43 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
         }
 
         try {
-            // 获取配置的场馆和区域（使用当前活动ID确保活动隔离）
-            String currentActiveId = AppPreferences.getLastActiveId(requireContext());
-            Set<String> configuredVenues = AppPreferences.getSelectedVenuePermissions(requireContext(), currentActiveId);
-            Set<String> configuredAreas = AppPreferences.getSelectedAreaPermissions(requireContext(), currentActiveId);
+            // 从 BasicInfo 获取设备的权限配置（matrixAuthInfoList）
+            BasicInfo basicInfo = initializationRepository.getBasicInfo();
+            if (basicInfo == null || basicInfo.getMatrixAuthInfoList() == null || basicInfo.getMatrixAuthInfoList().isEmpty()) {
+                Log.i(TAG, "权限校验通过: 未配置设备权限（matrixAuthInfoList为空）");
+                return true;
+            }
 
-            Log.d(TAG, "开始权限校验");
-            Log.d(TAG, "配置的场馆权限: " + (configuredVenues == null ? "null" : configuredVenues.toString()));
-            Log.d(TAG, "配置的区域权限: " + (configuredAreas == null ? "null" : configuredAreas.toString()));
+            // 从 matrixAuthInfoList 提取设备的权限要求
+            Set<String> deviceVenues = new java.util.HashSet<>();
+            Set<String> deviceAreas = new java.util.HashSet<>();
+            Set<String> devicePartitions = new java.util.HashSet<>();
+
+            for (BasicInfo.MatrixAuthInfo authInfo : basicInfo.getMatrixAuthInfoList()) {
+                if (authInfo != null) {
+                    // venue - 场馆权限
+                    if (!TextUtils.isEmpty(authInfo.venue)) {
+                        deviceVenues.add(authInfo.venue.trim());
+                    }
+                    // venueArea - 分区权限
+                    if (!TextUtils.isEmpty(authInfo.venueArea)) {
+                        deviceAreas.add(authInfo.venueArea.trim());
+                    }
+                    // venuePartition - 区域权限
+                    if (!TextUtils.isEmpty(authInfo.venuePartition)) {
+                        devicePartitions.add(authInfo.venuePartition.trim());
+                    }
+                }
+            }
+
+            Log.d(TAG, "开始权限校验（使用 matrixAuthInfoList）");
+            Log.d(TAG, "设备场馆权限: " + deviceVenues);
+            Log.d(TAG, "设备分区权限(venueArea): " + deviceAreas);
+            Log.d(TAG, "设备区域权限(venuePartition): " + devicePartitions);
 
             // 如果没有配置任何权限，则通过
-            if ((configuredVenues == null || configuredVenues.isEmpty()) && (configuredAreas == null || configuredAreas.isEmpty())) {
-                Log.i(TAG, "权限校验通过: 未配置任何权限要求");
+            if (deviceVenues.isEmpty() && deviceAreas.isEmpty() && devicePartitions.isEmpty()) {
+                Log.i(TAG, "权限校验通过: 设备未配置任何权限要求");
                 return true;
             }
 
@@ -819,8 +844,8 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             String zonePrivileges = info.zonePrivileges;
 
             Log.d(TAG, "证件场馆权限(venuePrivileges): " + venuePrivileges);
-            Log.d(TAG, "证件区域权限(areaPrivileges): " + areaPrivileges);
-            Log.d(TAG, "证件分区权限(zonePrivileges): " + zonePrivileges);
+            Log.d(TAG, "证件分区权限(areaPrivileges): " + areaPrivileges);
+            Log.d(TAG, "证件区域权限(zonePrivileges): " + zonePrivileges);
 
             // 解析证件的场馆权限列表
             Set<String> certVenueSet = new java.util.HashSet<>();
@@ -834,7 +859,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
                 }
             }
 
-            // 解析证件的区域权限列表
+            // 解析证件的分区权限列表（对应 venueArea）
             Set<String> certAreaSet = new java.util.HashSet<>();
             if (!TextUtils.isEmpty(areaPrivileges)) {
                 String[] areas = areaPrivileges.split(",");
@@ -846,7 +871,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
                 }
             }
 
-            // 解析证件的分区权限列表
+            // 解析证件的区域权限列表（对应 venuePartition）
             Set<String> certZoneSet = new java.util.HashSet<>();
             if (!TextUtils.isEmpty(zonePrivileges)) {
                 String[] zones = zonePrivileges.split(",");
@@ -858,24 +883,24 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
                 }
             }
 
-            // 特殊规则：权限为 ALL 则拥有所有场馆与区域权限
+            // 特殊规则：权限为 ALL 则拥有所有权限
             if (certVenueSet.contains("ALL") || certAreaSet.contains("ALL") || certZoneSet.contains("ALL")) {
                 Log.i(TAG, "检测到 ALL 权限，视为拥有全部权限，直接通过");
                 return true;
             }
 
             Log.d(TAG, "证件场馆权限列表: " + certVenueSet);
-            Log.d(TAG, "证件区域权限列表: " + certAreaSet);
-            Log.d(TAG, "证件分区权限列表: " + certZoneSet);
+            Log.d(TAG, "证件分区权限列表: " + certAreaSet);
+            Log.d(TAG, "证件区域权限列表: " + certZoneSet);
 
             // 检查场馆权限匹配
             boolean venueMatched = true;
-            if (configuredVenues != null && !configuredVenues.isEmpty()) {
+            if (!deviceVenues.isEmpty()) {
                 venueMatched = false;
-                for (String configuredVenue : configuredVenues) {
-                    if (certVenueSet.contains(configuredVenue)) {
+                for (String deviceVenue : deviceVenues) {
+                    if (certVenueSet.contains(deviceVenue)) {
                         venueMatched = true;
-                        Log.d(TAG, "场馆权限匹配成功: " + configuredVenue);
+                        Log.d(TAG, "场馆权限匹配成功: " + deviceVenue);
                         break;
                     }
                 }
@@ -884,28 +909,45 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
                 Log.i(TAG, "场馆权限校验结果: 通过 (未配置场馆权限要求)");
             }
 
-            // 检查区域权限匹配
+            // 检查分区权限匹配（venueArea）
             boolean areaMatched = true;
-            if (configuredAreas != null && !configuredAreas.isEmpty()) {
+            if (!deviceAreas.isEmpty()) {
                 areaMatched = false;
-                for (String configuredArea : configuredAreas) {
-                    if (certAreaSet.contains(configuredArea) || certZoneSet.contains(configuredArea)) {
+                for (String deviceArea : deviceAreas) {
+                    if (certAreaSet.contains(deviceArea)) {
                         areaMatched = true;
-                        Log.d(TAG, "区域权限匹配成功: " + configuredArea);
+                        Log.d(TAG, "分区权限匹配成功: " + deviceArea);
                         break;
                     }
                 }
-                Log.i(TAG, "区域权限校验结果: " + (areaMatched ? "通过" : "不通过"));
+                Log.i(TAG, "分区权限校验结果: " + (areaMatched ? "通过" : "不通过"));
+            } else {
+                Log.i(TAG, "分区权限校验结果: 通过 (未配置分区权限要求)");
+            }
+
+            // 检查区域权限匹配（venuePartition）
+            boolean partitionMatched = true;
+            if (!devicePartitions.isEmpty()) {
+                partitionMatched = false;
+                for (String devicePartition : devicePartitions) {
+                    if (certZoneSet.contains(devicePartition)) {
+                        partitionMatched = true;
+                        Log.d(TAG, "区域权限匹配成功: " + devicePartition);
+                        break;
+                    }
+                }
+                Log.i(TAG, "区域权限校验结果: " + (partitionMatched ? "通过" : "不通过"));
             } else {
                 Log.i(TAG, "区域权限校验结果: 通过 (未配置区域权限要求)");
             }
 
-            // 场馆和区域权限都要匹配才能通过
-            boolean finalResult = venueMatched && areaMatched;
+            // 场馆、分区、区域权限都要匹配才能通过
+            boolean finalResult = venueMatched && areaMatched && partitionMatched;
             Log.i(TAG, "==================================================");
             Log.i(TAG, "最终权限校验结果: " + (finalResult ? "通过 ✓" : "不通过 ✗"));
             Log.i(TAG, "  - 场馆权限: " + (venueMatched ? "通过" : "不通过"));
-            Log.i(TAG, "  - 区域权限: " + (areaMatched ? "通过" : "不通过"));
+            Log.i(TAG, "  - 分区权限: " + (areaMatched ? "通过" : "不通过"));
+            Log.i(TAG, "  - 区域权限: " + (partitionMatched ? "通过" : "不通过"));
             Log.i(TAG, "==================================================");
             return finalResult;
 

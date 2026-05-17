@@ -67,6 +67,8 @@ public class SettingsFragment extends Fragment {
     private Set<String> pendingSelectedSessions = new HashSet<>();
     private Set<String> pendingSelectedVenues = new HashSet<>();
     private Set<String> pendingSelectedAreas = new HashSet<>();
+    private String pendingSelectedLocationId = null;
+    private String pendingSelectedZoneId = null;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -107,6 +109,8 @@ public class SettingsFragment extends Fragment {
         pendingSelectedSessions = new HashSet<>(AppPreferences.getSelectedSessions(requireContext(), currentActiveId));
         pendingSelectedVenues = new HashSet<>(AppPreferences.getSelectedVenuePermissions(requireContext(), currentActiveId));
         pendingSelectedAreas = new HashSet<>(AppPreferences.getSelectedAreaPermissions(requireContext(), currentActiveId));
+        pendingSelectedLocationId = AppPreferences.getSelectedLocationId(requireContext(), currentActiveId);
+        pendingSelectedZoneId = AppPreferences.getSelectedZoneId(requireContext(), currentActiveId);
 
         btnTestConnection.setOnClickListener(v -> testServerConnection());
         btnSaveSetting.setOnClickListener(v -> saveSettings());
@@ -204,10 +208,14 @@ public class SettingsFragment extends Fragment {
             pendingSelectedSessions = new HashSet<>();
             pendingSelectedVenues = new HashSet<>();
             pendingSelectedAreas = new HashSet<>();
+            pendingSelectedLocationId = null;
+            pendingSelectedZoneId = null;
         } else {
             pendingSelectedSessions = new HashSet<>(AppPreferences.getSelectedSessions(requireContext(), selectedActiveId));
             pendingSelectedVenues = new HashSet<>(AppPreferences.getSelectedVenuePermissions(requireContext(), selectedActiveId));
             pendingSelectedAreas = new HashSet<>(AppPreferences.getSelectedAreaPermissions(requireContext(), selectedActiveId));
+            pendingSelectedLocationId = AppPreferences.getSelectedLocationId(requireContext(), selectedActiveId);
+            pendingSelectedZoneId = AppPreferences.getSelectedZoneId(requireContext(), selectedActiveId);
         }
     }
 
@@ -285,6 +293,14 @@ public class SettingsFragment extends Fragment {
         AppPreferences.setSelectedSessions(requireContext(), activeIdForSave, pendingSelectedSessions);
         AppPreferences.setSelectedVenuePermissions(requireContext(), activeIdForSave, pendingSelectedVenues);
         AppPreferences.setSelectedAreaPermissions(requireContext(), activeIdForSave, pendingSelectedAreas);
+        
+        // 保存位置和分区ID
+        if (!TextUtils.isEmpty(pendingSelectedLocationId)) {
+            AppPreferences.setSelectedLocationId(requireContext(), activeIdForSave, pendingSelectedLocationId);
+        }
+        if (!TextUtils.isEmpty(pendingSelectedZoneId)) {
+            AppPreferences.setSelectedZoneId(requireContext(), activeIdForSave, pendingSelectedZoneId);
+        }
 
         // 通知HomeFragment更新自动初始化的服务器地址
         notifyHomeFragmentServerUrlChanged(normalized);
@@ -541,11 +557,15 @@ public class SettingsFragment extends Fragment {
             ArrayList<String> sessions = data.getStringArrayListExtra("selected_sessions");
             ArrayList<String> venues = data.getStringArrayListExtra("selected_venues");
             ArrayList<String> areas = data.getStringArrayListExtra("selected_areas");
+            String locationId = data.getStringExtra("selected_location_id");
+            String zoneId = data.getStringExtra("selected_zone_id");
 
             // 保存到临时变量，等待用户点击“保存设置”按钮
             pendingSelectedSessions = sessions != null ? new HashSet<>(sessions) : new HashSet<>();
             pendingSelectedVenues = venues != null ? new HashSet<>(venues) : new HashSet<>();
             pendingSelectedAreas = areas != null ? new HashSet<>(areas) : new HashSet<>();
+            pendingSelectedLocationId = locationId;
+            pendingSelectedZoneId = zoneId;
         }
     }
 

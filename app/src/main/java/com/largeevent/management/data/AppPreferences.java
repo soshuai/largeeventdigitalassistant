@@ -20,6 +20,7 @@ public class AppPreferences {
     private static final String KEY_SELECTED_VENUE_PERMISSIONS = "key_selected_venue_permissions";
     private static final String KEY_SELECTED_AREA_PERMISSIONS = "key_selected_area_permissions";
     private static final String KEY_SELECTED_LOCATION_ID = "key_selected_location_id";
+    private static final String KEY_SELECTED_ZONE_ID = "key_selected_zone_id";
     private static final String KEY_LAST_PERSON_COUNT = "key_last_person_count";
     private static final String KEY_LAST_VEHICLE_COUNT = "key_last_vehicle_count";
     private static final String KEY_LAST_SYNC_STATUS = "key_last_sync_status";
@@ -249,6 +250,30 @@ public class AppPreferences {
         SharedPreferences prefs = getPrefs(context);
         String key = KEY_SELECTED_LOCATION_ID + "_" + activeId;
         prefs.edit().putString(key, locationId).apply();
+    }
+
+    /**
+     * 获取选中的分区ID(按活动隔离)
+     */
+    public static String getSelectedZoneId(Context context, String activeId) {
+        if (TextUtils.isEmpty(activeId)) {
+            return null;
+        }
+        SharedPreferences prefs = getPrefs(context);
+        String key = KEY_SELECTED_ZONE_ID + "_" + activeId;
+        return prefs.getString(key, null);
+    }
+
+    /**
+     * 设置选中的分区ID(按活动隔离)
+     */
+    public static void setSelectedZoneId(Context context, String activeId, String zoneId) {
+        if (TextUtils.isEmpty(activeId)) {
+            return;
+        }
+        SharedPreferences prefs = getPrefs(context);
+        String key = KEY_SELECTED_ZONE_ID + "_" + activeId;
+        prefs.edit().putString(key, zoneId).apply();
     }
 
     /**

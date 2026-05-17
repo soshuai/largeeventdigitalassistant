@@ -5,9 +5,11 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,6 +22,8 @@ import com.largeevent.management.data.ActiveUserParser;
 import com.largeevent.management.data.AppPreferences;
 import com.largeevent.management.data.InitializationRepository;
 import com.largeevent.management.model.BasicInfo;
+import com.largeevent.management.model.BasicInfo.LocationInfo;
+import com.largeevent.management.model.BasicInfo.VenueInfo;
 import com.largeevent.management.model.EventInfo;
 import com.largeevent.management.model.EventSession;
 
@@ -53,8 +57,8 @@ public class EventSettingsActivity extends AppCompatActivity {
     private TextView tvEventName;
     private FlowLayout containerSessions;
     private FlowLayout containerVenuePermissions;
-    private FlowLayout containerAreaPermissions;
-    private FlowLayout containerLocation;
+    private Spinner spinnerLocation;
+    private Spinner spinnerZone;
     private Button btnSyncData;
     private TextView tvSyncStatus;
     private TextView tvPersonTotal;
@@ -64,12 +68,15 @@ public class EventSettingsActivity extends AppCompatActivity {
 
     private final List<CheckBox> sessionCheckboxes = new ArrayList<>();
     private final List<CheckBox> venueCheckboxes = new ArrayList<>();
-    private final List<CheckBox> areaCheckboxes = new ArrayList<>();
-    private final List<CheckBox> locationCheckboxes = new ArrayList<>();
 
     private EventInfo currentEventInfo;
     private String currentActiveId;
     private String selectedLocationId = null; // 保存选中的位置ID
+    private String selectedZoneId = null; // 保存选中的分区ID
+    
+    // 用于存储位置和分区数据
+    private List<LocationInfo> locationList = new ArrayList<>(); // locationType="cg" 的数据
+    private List<LocationInfo> zoneList = new ArrayList<>(); // locationType="fq" 的数据
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -89,8 +96,8 @@ public class EventSettingsActivity extends AppCompatActivity {
         tvEventName = findViewById(R.id.tv_event_name);
         containerSessions = findViewById(R.id.container_sessions);
         containerVenuePermissions = findViewById(R.id.container_venue_permissions);
-        containerAreaPermissions = findViewById(R.id.container_area_permissions);
-        containerLocation = findViewById(R.id.container_location);
+        spinnerLocation = findViewById(R.id.spinner_location);
+        spinnerZone = findViewById(R.id.spinner_zone);
         btnSyncData = findViewById(R.id.btn_sync_data);
         tvSyncStatus = findViewById(R.id.tv_sync_status);
         tvPersonTotal = findViewById(R.id.tv_person_total);
@@ -176,62 +183,42 @@ public class EventSettingsActivity extends AppCompatActivity {
 
     private void populatePermissionList() {
         containerVenuePermissions.removeAllViews();
-        containerAreaPermissions.removeAllViews();
-        containerLocation.removeAllViews();
         venueCheckboxes.clear();
-        areaCheckboxes.clear();
-        locationCheckboxes.clear();
 
         // 读取上次保存的权限选择（仅用于显示，按活动隔离）
         Set<String> savedVenues = AppPreferences.getSelectedVenuePermissions(this, currentActiveId);
-        Set<String> savedAreas = AppPreferences.getSelectedAreaPermissions(this, currentActiveId);
 
-        // 直接从 BasicInfo 中获取场馆权限（activeVenueModelList）
+        // 直接从 BasicInfo 中获取数据
         BasicInfo basicInfo = repository.getBasicInfo();
         if (basicInfo != null) {
-            // 场馆权限：从 activeVenueModelList 中获取
-            if (basicInfo.getActiveVenues() != null) {
-                for (BasicInfo.ActiveVenueModel venue : basicInfo.getActiveVenues()) {
-                    if (venue != null && !TextUtils.isEmpty(venue.venueName)) {
-                        CheckBox checkBox = createCheckBox(venue.venueName);
-                        checkBox.setChecked(savedVenues.contains(venue.venueName));
-                        containerVenuePermissions.addView(checkBox);
-                        venueCheckboxes.add(checkBox);
+            // 清空之前的数据
+            locationList.clear();
+            zoneList.clear();
+            
+            // 从 locationInfoList 获取位置和分区数据
+            if (basicInfo.getLocationInfoList() != null) {
+                for (BasicInfo.LocationInfo locationInfo : basicInfo.getLocationInfoList()) {
+                    if (locationInfo != null && !TextUtils.isEmpty(locationInfo.locationName) && !TextUtils.isEmpty(locationInfo.locationId)) {
+                        String locationType = locationInfo.locationType;
+                        if ("cg".equals(locationType)) {
+                            // 场馆类型 - 用于位置选择
+                            locationList.add(locationInfo);
+                        } else if ("fq".equals(locationType)) {
+                            // 区域类型 - 用于分区选择
+                            zoneList.add(locationInfo);
+                        }
                     }
                 }
             }
 
-            // 区域权限：展示人证区域和车证区域合并
-            List<String> allCertPermissions = new ArrayList<>();
+            // 设置位置下拉选择（场馆类型 locationType="cg"）
+            setupLocationSpinner();
+            
+            // 设置分区下拉选择（区域类型 locationType="fq"）
+            setupZoneSpinner();
 
-            // 添加人证区域权限（使用 positionModelList）
-            if (basicInfo.getPositions() != null) {
-                for (BasicInfo.PositionModel position : basicInfo.getPositions()) {
-                    if (position != null && !TextUtils.isEmpty(position.name)) {
-                        allCertPermissions.add(position.name);
-                    }
-                }
-            }
-
-            // 添加车证区域权限
-            if (basicInfo.getCarCertTypes() != null) {
-                for (BasicInfo.CertTypeModel certType : basicInfo.getCarCertTypes()) {
-                    if (certType != null && !TextUtils.isEmpty(certType.dictValue)) {
-                        allCertPermissions.add(certType.dictValue);
-                    }
-                }
-            }
-
-            // 显示合并后的区域权限
-            for (String permission : allCertPermissions) {
-                CheckBox checkBox = createCheckBox(permission);
-                checkBox.setChecked(savedAreas.contains(permission));
-                containerAreaPermissions.addView(checkBox);
-                areaCheckboxes.add(checkBox);
-            }
-
-            // 显示位置选择(单选,内容与区域权限相同)
-            populateLocationList(basicInfo, allCertPermissions);
+            // 场馆权限（从 venueInfoList 获取）
+            populateVenuePermissions(basicInfo, savedVenues);
         } else {
             // 如果没有 BasicInfo 数据，则使用 EventInfo 的逻辑（向后兼容）
             if (currentEventInfo != null) {
@@ -244,93 +231,111 @@ public class EventSettingsActivity extends AppCompatActivity {
                         venueCheckboxes.add(checkBox);
                     }
                 }
-
-                // 区域权限
-                if (currentEventInfo.getAreaPermissions() != null) {
-                    for (String permission : currentEventInfo.getAreaPermissions()) {
-                        CheckBox checkBox = createCheckBox(permission);
-                        checkBox.setChecked(savedAreas.contains(permission));
-                        containerAreaPermissions.addView(checkBox);
-                        areaCheckboxes.add(checkBox);
-                    }
-                }
             }
         }
     }
 
     /**
-     * 填充位置选择列表(单选,内容与区域权限相同)
+     * 设置位置下拉选择（场馆类型 locationType="cg"）
      */
-    private void populateLocationList(BasicInfo basicInfo, List<String> allCertPermissions) {
-        if (basicInfo == null || allCertPermissions == null || allCertPermissions.isEmpty()) {
-            return;
-        }
-
+    private void setupLocationSpinner() {
         // 读取上次保存的位置ID
         String savedLocationId = AppPreferences.getSelectedLocationId(this, currentActiveId);
         selectedLocationId = savedLocationId;
 
-        // 创建一个Map来存储 permission -> id 的映射
-        final java.util.Map<String, String> permissionToIdMap = new java.util.HashMap<>();
-
-        // 优先使用新的 locationInfoList
-        if (basicInfo.getLocationInfoList() != null && !basicInfo.getLocationInfoList().isEmpty()) {
-            for (BasicInfo.LocationInfo locationInfo : basicInfo.getLocationInfoList()) {
-                if (locationInfo != null && !TextUtils.isEmpty(locationInfo.locationName) && !TextUtils.isEmpty(locationInfo.locationId)) {
-                    permissionToIdMap.put(locationInfo.locationName, locationInfo.locationId);
-                }
+        List<String> locationNames = new ArrayList<>();
+        locationNames.add("请选择设备所在位置");
+        
+        int selectedIndex = 0;
+        for (int i = 0; i < locationList.size(); i++) {
+            LocationInfo location = locationList.get(i);
+            locationNames.add(location.locationName);
+            if (location.locationId.equals(savedLocationId)) {
+                selectedIndex = i + 1; // +1 是因为第一个是提示项
             }
         }
 
-        // 如果 locationInfoList 为空，回退到旧的 positions
-        if (permissionToIdMap.isEmpty() && basicInfo.getPositions() != null) {
-            for (BasicInfo.PositionModel position : basicInfo.getPositions()) {
-                if (position != null && !TextUtils.isEmpty(position.name) && !TextUtils.isEmpty(position.positionCode)) {
-                    permissionToIdMap.put(position.name, position.positionCode);
-                }
-            }
-        }
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, locationNames);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerLocation.setAdapter(adapter);
+        spinnerLocation.setSelection(selectedIndex);
 
-        // 从车证区域获取 dictCode 作为 ID
-        if (basicInfo.getCarCertTypes() != null) {
-            for (BasicInfo.CertTypeModel certType : basicInfo.getCarCertTypes()) {
-                if (certType != null && !TextUtils.isEmpty(certType.dictValue) && !TextUtils.isEmpty(certType.dictCode)) {
-                    permissionToIdMap.put(certType.dictValue, certType.dictCode);
-                }
-            }
-        }
-
-        // 显示位置选择(单选)
-        for (String permission : allCertPermissions) {
-            CheckBox checkBox = createCheckBox(permission);
-            String itemId = permissionToIdMap.get(permission);
-
-            // 设置选中状态
-            if (itemId != null && itemId.equals(savedLocationId)) {
-                checkBox.setChecked(true);
-            }
-
-            // 单选逻辑:点击时取消其他选项
-            checkBox.setOnClickListener(v -> {
-                // 取消其他所有选项
-                for (CheckBox cb : locationCheckboxes) {
-                    if (cb != checkBox) {
-                        cb.setChecked(false);
-                    }
-                }
-
-                // 更新选中的位置ID
-                if (checkBox.isChecked()) {
-                    selectedLocationId = itemId;
-                    // 位置选择后调用设备注册接口
-                    registerEquipment(itemId);
-                } else {
+        spinnerLocation.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
+                if (position == 0) {
                     selectedLocationId = null;
+                } else {
+                    LocationInfo location = locationList.get(position - 1);
+                    selectedLocationId = location.locationId;
                 }
-            });
+            }
 
-            containerLocation.addView(checkBox);
-            locationCheckboxes.add(checkBox);
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                selectedLocationId = null;
+            }
+        });
+    }
+
+    /**
+     * 设置分区下拉选择（区域类型 locationType="fq"）
+     */
+    private void setupZoneSpinner() {
+        // 读取上次保存的分区ID
+        String savedZoneId = AppPreferences.getSelectedZoneId(this, currentActiveId);
+        selectedZoneId = savedZoneId;
+
+        List<String> zoneNames = new ArrayList<>();
+        zoneNames.add("请选择设备所在分区");
+        
+        int selectedIndex = 0;
+        for (int i = 0; i < zoneList.size(); i++) {
+            LocationInfo zone = zoneList.get(i);
+            zoneNames.add(zone.locationName);
+            if (zone.locationId.equals(savedZoneId)) {
+                selectedIndex = i + 1; // +1 是因为第一个是提示项
+            }
+        }
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, zoneNames);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerZone.setAdapter(adapter);
+        spinnerZone.setSelection(selectedIndex);
+
+        spinnerZone.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
+                if (position == 0) {
+                    selectedZoneId = null;
+                } else {
+                    LocationInfo zone = zoneList.get(position - 1);
+                    selectedZoneId = zone.locationId;
+                }
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                selectedZoneId = null;
+            }
+        });
+    }
+
+    /**
+     * 填充场馆权限（从 venueInfoList 获取）
+     */
+    private void populateVenuePermissions(BasicInfo basicInfo, Set<String> savedVenues) {
+        if (basicInfo.getVenueInfoList() == null || basicInfo.getVenueInfoList().isEmpty()) {
+            return;
+        }
+
+        for (VenueInfo venue : basicInfo.getVenueInfoList()) {
+            if (venue != null && !TextUtils.isEmpty(venue.dictValue)) {
+                CheckBox checkBox = createCheckBox(venue.dictValue);
+                checkBox.setChecked(savedVenues.contains(venue.dictValue));
+                containerVenuePermissions.addView(checkBox);
+                venueCheckboxes.add(checkBox);
+            }
         }
     }
 
@@ -379,30 +384,31 @@ public class EventSettingsActivity extends AppCompatActivity {
         return selectedVenues;
     }
 
-    private Set<String> getCurrentSelectedAreaPermissions() {
-        Set<String> selectedAreas = new java.util.HashSet<>();
-        for (CheckBox cb : areaCheckboxes) {
-            if (cb.isChecked()) {
-                selectedAreas.add(cb.getText().toString());
-            }
-        }
-        return selectedAreas;
-    }
-
     /**
      * 将当前选中状态返回给 SettingsFragment
      */
     @Override
     public void onBackPressed() {
-        // 保存选中的位置ID
+        // 如果选择了位置，调用设备注册接口，成功后再返回
         if (!TextUtils.isEmpty(selectedLocationId)) {
-            AppPreferences.setSelectedLocationId(this, currentActiveId, selectedLocationId);
+            // 调用设备注册接口，成功后重新获取 BasicInfo
+            registerEquipmentAndRefreshBasicInfo(selectedLocationId);
+            return; // 等待接口调用完成后再返回
         }
 
+        // 没有选择位置，直接返回数据
+        returnResultAndFinish();
+    }
+
+    /**
+     * 返回选中的数据给 SettingsFragment
+     */
+    private void returnResultAndFinish() {
         Intent result = new Intent();
         result.putStringArrayListExtra("selected_sessions", new ArrayList<>(getCurrentSelectedSessions()));
         result.putStringArrayListExtra("selected_venues", new ArrayList<>(getCurrentSelectedVenuePermissions()));
-        result.putStringArrayListExtra("selected_areas", new ArrayList<>(getCurrentSelectedAreaPermissions()));
+        result.putExtra("selected_location_id", selectedLocationId);
+        result.putExtra("selected_zone_id", selectedZoneId);
         setResult(RESULT_OK, result);
         super.onBackPressed();
     }
@@ -515,6 +521,107 @@ public class EventSettingsActivity extends AppCompatActivity {
                 Log.e(TAG, "registerEquipment: onFailure", t);
             }
         });
+    }
+
+    /**
+     * 调用设备注册接口并在成功后重新获取 BasicInfo
+     */
+    private void registerEquipmentAndRefreshBasicInfo(String locationId) {
+        if (TextUtils.isEmpty(currentActiveId)) {
+            Log.w(TAG, "registerEquipmentAndRefreshBasicInfo: currentActiveId is null");
+            finishActivity();
+            return;
+        }
+
+        String deviceCode = AppPreferences.getDeviceCode(this);
+        if (TextUtils.isEmpty(deviceCode)) {
+            deviceCode = generateDeviceCode();
+            AppPreferences.setDeviceCode(this, deviceCode);
+        }
+
+        String createTime = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(new java.util.Date());
+
+        EquipmentRegisterDTO eqpRegisterDTO = new EquipmentRegisterDTO();
+        eqpRegisterDTO.activityId = currentActiveId;
+        eqpRegisterDTO.eqpID = deviceCode;
+        eqpRegisterDTO.createTime = createTime;
+        eqpRegisterDTO.locationID = locationId;
+        eqpRegisterDTO.zoneLocationID = locationId;
+
+        ApiService apiService = NetworkManager.getInstance().getApiService();
+        retrofit2.Call<ResponseBody> call = apiService.registerEquipment(eqpRegisterDTO);
+
+        call.enqueue(new retrofit2.Callback<ResponseBody>() {
+            @Override
+            public void onResponse(@NonNull retrofit2.Call<ResponseBody> call, @NonNull retrofit2.Response<ResponseBody> response) {
+                if (response.isSuccessful()) {
+                    Log.i(TAG, "registerEquipmentAndRefreshBasicInfo: registration success");
+                    // 设备注册成功后重新获取 BasicInfo
+                    refreshBasicInfo();
+                } else {
+                    Log.w(TAG, "registerEquipmentAndRefreshBasicInfo: registration failed, code=" + response.code());
+                    // 注册失败也返回
+                    finishActivity();
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull retrofit2.Call<ResponseBody> call, @NonNull Throwable t) {
+                Log.e(TAG, "registerEquipmentAndRefreshBasicInfo: registration onFailure", t);
+                // 注册失败也返回
+                finishActivity();
+            }
+        });
+    }
+
+    /**
+     * 重新获取 BasicInfo
+     */
+    private void refreshBasicInfo() {
+        ApiService apiService = NetworkManager.getInstance().getApiService();
+        String activityId = AppPreferences.getLastActiveId(this);
+        String serverUrl = AppPreferences.getServerUrl(this);
+        
+        retrofit2.Call<okhttp3.ResponseBody> call = apiService.getBasicInfo(activityId);
+        call.enqueue(new retrofit2.Callback<okhttp3.ResponseBody>() {
+            @Override
+            public void onResponse(@NonNull retrofit2.Call<okhttp3.ResponseBody> call, 
+                                   @NonNull retrofit2.Response<okhttp3.ResponseBody> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    try {
+                        String json = response.body().string();
+                        Log.i(TAG, "refreshBasicInfo: success");
+                        // 保存新的 BasicInfo 数据（包含 matrixAuthInfoList）
+                        repository.saveBaseInfo(serverUrl, json);
+                    } catch (Exception e) {
+                        Log.e(TAG, "refreshBasicInfo: parse error", e);
+                    }
+                } else {
+                    Log.w(TAG, "refreshBasicInfo: failed");
+                }
+                // 无论成功失败都返回
+                finishActivity();
+            }
+
+            @Override
+            public void onFailure(@NonNull retrofit2.Call<okhttp3.ResponseBody> call, @NonNull Throwable t) {
+                Log.e(TAG, "refreshBasicInfo: onFailure", t);
+                finishActivity();
+            }
+        });
+    }
+
+    /**
+     * 完成并返回上一个页面
+     */
+    private void finishActivity() {
+        Intent result = new Intent();
+        result.putStringArrayListExtra("selected_sessions", new ArrayList<>(getCurrentSelectedSessions()));
+        result.putStringArrayListExtra("selected_venues", new ArrayList<>(getCurrentSelectedVenuePermissions()));
+        result.putExtra("selected_location_id", selectedLocationId);
+        result.putExtra("selected_zone_id", selectedZoneId);
+        setResult(RESULT_OK, result);
+        EventSettingsActivity.super.onBackPressed();
     }
 
     private String generateDeviceCode() {

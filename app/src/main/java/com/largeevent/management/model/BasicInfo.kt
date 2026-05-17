@@ -13,7 +13,8 @@ class BasicInfo(
     carCertTypes: MutableList<CertTypeModel?>?,
     locationInfoList: MutableList<LocationInfo?>?,
     matrixAuthInfoList: MutableList<MatrixAuthInfo?>?,
-    epidemicInfoList: MutableList<EpidemicInfo?>?
+    epidemicInfoList: MutableList<EpidemicInfo?>?,
+    venueInfoList: MutableList<VenueInfo?>?
 ) : Serializable {
     private val activeModels: MutableList<ActiveModel?>
     private val activeVenues: MutableList<ActiveVenueModel?>
@@ -25,6 +26,7 @@ class BasicInfo(
     private val locationInfoList: MutableList<LocationInfo?>
     private val matrixAuthInfoList: MutableList<MatrixAuthInfo?>
     private val epidemicInfoList: MutableList<EpidemicInfo?>
+    private val venueInfoList: MutableList<VenueInfo?>
 
     init {
         this.activeModels =
@@ -66,6 +68,10 @@ class BasicInfo(
         this.epidemicInfoList =
             if (epidemicInfoList == null) ArrayList<EpidemicInfo?>() else ArrayList<EpidemicInfo?>(
                 epidemicInfoList
+            )
+        this.venueInfoList =
+            if (venueInfoList == null) ArrayList<VenueInfo?>() else ArrayList<VenueInfo?>(
+                venueInfoList
             )
     }
 
@@ -109,10 +115,15 @@ class BasicInfo(
         return Collections.unmodifiableList<EpidemicInfo?>(epidemicInfoList)
     }
 
+    fun getVenueInfoList(): MutableList<VenueInfo?> {
+        return Collections.unmodifiableList<VenueInfo?>(venueInfoList)
+    }
+
     val isEmpty: Boolean
         get() = activeModels.isEmpty() && activeVenues.isEmpty() && positions.isEmpty() && 
                 passRules.isEmpty() && cartTypes.isEmpty() && personCertTypes.isEmpty() && 
-                carCertTypes.isEmpty() && locationInfoList.isEmpty() && matrixAuthInfoList.isEmpty()
+                carCertTypes.isEmpty() && locationInfoList.isEmpty() && matrixAuthInfoList.isEmpty() &&
+                epidemicInfoList.isEmpty() && venueInfoList.isEmpty()
 
     class ActiveModel(
         @JvmField val id: String?,
@@ -270,5 +281,20 @@ class BasicInfo(
         @JvmField val activityCode: String?,
         @JvmField val rfu: String?,
         @JvmField val eqpId: String?
+    ) : Serializable
+
+    class VenueInfo(
+        @JvmField val id: String?,
+        @JvmField val createBy: String?,
+        @JvmField val createTime: String?,
+        @JvmField val updateBy: String?,
+        @JvmField val updateTime: String?,
+        @JvmField val isDeleted: Int?,
+        @JvmField val remark: String?,
+        @JvmField val dictType: String?,
+        @JvmField val dictCode: String?,
+        @JvmField val dictValue: String?,
+        @JvmField val sortNumber: Int?,
+        @JvmField val isLocked: Int?
     ) : Serializable
 }
