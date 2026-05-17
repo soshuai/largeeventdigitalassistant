@@ -1,0 +1,36 @@
+# IDE 相关文件
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 编译产物
+build/
+app/build/
+captures/
+.app/
+.local.properties
+
+# Gradle 相关
+.gradle/
+gradle/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# 日志、缓存文件
+*.log
+*.tmp
+*.bak
+*.apk
+*.ap_
+*.dex
+
+# 其他
+lint-baseline.xml
+/gradle.properties
