@@ -73,6 +73,9 @@ public class SettingsFragment extends Fragment {
     
     // 保存当前活动ID用于设备注册
     private String currentActiveIdForSave = null;
+    
+    // 防止重复点击标志
+    private boolean isSaving = false;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -270,6 +273,12 @@ public class SettingsFragment extends Fragment {
     }
 
     private void saveSettings() {
+        // 防止重复点击
+        if (isSaving) {
+            Toast.makeText(requireContext(), "正在保存中，请稍候", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
         String raw = etServer.getText().toString().trim();
         if (TextUtils.isEmpty(raw)) {
             Toast.makeText(requireContext(), "服务器地址不能为空", Toast.LENGTH_SHORT).show();
@@ -312,6 +321,7 @@ public class SettingsFragment extends Fragment {
 
         // 如果选择了位置，调用设备注册接口
         if (!TextUtils.isEmpty(pendingSelectedLocationId)) {
+            isSaving = true;
             Toast.makeText(requireContext(), "正在注册设备...", Toast.LENGTH_SHORT).show();
             registerEquipmentAndRefreshBasicInfo(pendingSelectedLocationId);
         } else if (urlChanged) {
@@ -337,8 +347,20 @@ public class SettingsFragment extends Fragment {
         com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
         
         EquipmentRegisterDTO eqpRegisterDTO = new EquipmentRegisterDTO();
+        
+        eqpRegisterDTO.accountNumber = "";
         eqpRegisterDTO.activityId = currentActiveIdForSave;
+        eqpRegisterDTO.carNumber = "";
+        eqpRegisterDTO.createTime = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(new java.util.Date());
+        eqpRegisterDTO.dataState = 1;
+        eqpRegisterDTO.description = "";
+        eqpRegisterDTO.eqpCode = AppPreferences.getDeviceCode(requireContext());
         eqpRegisterDTO.eqpID = AppPreferences.getDeviceCode(requireContext());
+        eqpRegisterDTO.eqpIP = getDeviceIpAddress();
+        eqpRegisterDTO.eqpModel = android.os.Build.MODEL;
+        eqpRegisterDTO.eqpName = "手持设备1";
+        eqpRegisterDTO.eqpState = 0;
+        eqpRegisterDTO.eqpType = "手持式查验设备";
         eqpRegisterDTO.locationID = locationId;
         eqpRegisterDTO.zoneLocationID = pendingSelectedZoneId;
         
@@ -355,6 +377,8 @@ public class SettingsFragment extends Fragment {
                     requireActivity().runOnUiThread(() -> {
                         Toast.makeText(requireContext(), "设备注册失败", Toast.LENGTH_SHORT).show();
                     });
+                    // 重置保存标志
+                    isSaving = false;
                 }
             }
 
@@ -364,6 +388,8 @@ public class SettingsFragment extends Fragment {
                 requireActivity().runOnUiThread(() -> {
                     Toast.makeText(requireContext(), "设备注册失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
                 });
+                // 重置保存标志
+                isSaving = false;
             }
         });
     }
@@ -403,11 +429,15 @@ public class SettingsFragment extends Fragment {
                 } else {
                     android.util.Log.w("SettingsFragment", "refreshBasicInfo: failed");
                 }
+                // 重置保存标志
+                isSaving = false;
             }
 
             @Override
             public void onFailure(@NonNull retrofit2.Call<ResponseBody> call, @NonNull Throwable t) {
                 android.util.Log.e("SettingsFragment", "refreshBasicInfo: onFailure", t);
+                // 重置保存标志
+                isSaving = false;
             }
         });
     }
@@ -666,6 +696,35 @@ public class SettingsFragment extends Fragment {
             pendingSelectedLocationId = locationId;
             pendingSelectedZoneId = zoneId;
         }
+    }
+
+    /**
+     * 获取设备IP地址
+     */
+    private String getDeviceIpAddress() {
+        try {
+            java.util.Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                java.net.NetworkInterface iface = interfaces.nextElement();
+                // 跳过回环接口和禁用的接口
+                if (iface.isLoopback() || !iface.isUp()) {
+                    continue;
+                }
+                
+                java.util.Enumeration<java.net.InetAddress> addresses = iface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    java.net.InetAddress addr = addresses.nextElement();
+                    // 只返回IPv4地址
+                    if (addr instanceof java.net.Inet4Address) {
+                        return addr.getHostAddress();
+                    }
+                }
+            }
+        } catch (java.net.SocketException e) {
+            android.util.Log.e("SettingsFragment", "getDeviceIpAddress failed", e);
+        }
+        // 如果获取失败，返回默认值
+        return "192.168.1.100";
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.largeevent.management.network;
 
+import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -15,6 +16,7 @@ public class NetworkManager {
     private static NetworkManager instance;
     private Retrofit retrofit;
     private String currentBaseUrl = "http://localhost/";  // 默认占位值，实际使用时必须设置
+    private Gson gson;
 
     private NetworkManager() {
         initRetrofit(currentBaseUrl);
@@ -35,10 +37,11 @@ public class NetworkManager {
                 .addInterceptor(new CustomHttpLogger())
                 .build();
 
-        // 配置Gson支持多种日期格式，不转义中文
-        Gson gson = new GsonBuilder()
+        // 配置Gson支持多种日期格式，不转义中文，字段名首字母大写
+        gson = new GsonBuilder()
                 .setDateFormat("yyyy-MM-dd HH:mm:ss")  // 支持服务器返回的日期格式
                 .disableHtmlEscaping()  // 禁止HTML转义
+                .setFieldNamingPolicy(FieldNamingPolicy.UPPER_CAMEL_CASE)  // 字段名首字母大写
                 .setLenient()
                 .create();
 

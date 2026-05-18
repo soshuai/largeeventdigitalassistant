@@ -219,8 +219,8 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     }
 
     private void startVerification() {
-        if (false) {
-            //TODO 测试
+        if (true) {
+            //TODO 测试 E00401531D5F1031 、E00401531D5F73AE
             currentChipId = "E00401531D5F73AE";
         } else {
             if (verifying) {
