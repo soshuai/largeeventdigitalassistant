@@ -14,7 +14,9 @@ class BasicInfo(
     locationInfoList: MutableList<LocationInfo?>?,
     matrixAuthInfoList: MutableList<MatrixAuthInfo?>?,
     epidemicInfoList: MutableList<EpidemicInfo?>?,
-    venueInfoList: MutableList<VenueInfo?>?
+    venueInfoList: MutableList<VenueInfo?>?,
+    personCertZoneList: MutableList<VenueInfo?>?,
+    personCertAreaList: MutableList<VenueInfo?>?
 ) : Serializable {
     private val activeModels: MutableList<ActiveModel?>
     private val activeVenues: MutableList<ActiveVenueModel?>
@@ -27,6 +29,8 @@ class BasicInfo(
     private val matrixAuthInfoList: MutableList<MatrixAuthInfo?>
     private val epidemicInfoList: MutableList<EpidemicInfo?>
     private val venueInfoList: MutableList<VenueInfo?>
+    private val personCertZoneList: MutableList<VenueInfo?>
+    private val personCertAreaList: MutableList<VenueInfo?>
 
     init {
         this.activeModels =
@@ -72,6 +76,14 @@ class BasicInfo(
         this.venueInfoList =
             if (venueInfoList == null) ArrayList<VenueInfo?>() else ArrayList<VenueInfo?>(
                 venueInfoList
+            )
+        this.personCertZoneList =
+            if (personCertZoneList == null) ArrayList<VenueInfo?>() else ArrayList<VenueInfo?>(
+                personCertZoneList
+            )
+        this.personCertAreaList =
+            if (personCertAreaList == null) ArrayList<VenueInfo?>() else ArrayList<VenueInfo?>(
+                personCertAreaList
             )
     }
 
@@ -119,11 +131,20 @@ class BasicInfo(
         return Collections.unmodifiableList<VenueInfo?>(venueInfoList)
     }
 
+    fun getPersonCertZoneList(): MutableList<VenueInfo?> {
+        return Collections.unmodifiableList<VenueInfo?>(personCertZoneList)
+    }
+
+    fun getPersonCertAreaList(): MutableList<VenueInfo?> {
+        return Collections.unmodifiableList<VenueInfo?>(personCertAreaList)
+    }
+
     val isEmpty: Boolean
         get() = activeModels.isEmpty() && activeVenues.isEmpty() && positions.isEmpty() && 
                 passRules.isEmpty() && cartTypes.isEmpty() && personCertTypes.isEmpty() && 
                 carCertTypes.isEmpty() && locationInfoList.isEmpty() && matrixAuthInfoList.isEmpty() &&
-                epidemicInfoList.isEmpty() && venueInfoList.isEmpty()
+                epidemicInfoList.isEmpty() && venueInfoList.isEmpty() &&
+                personCertZoneList.isEmpty() && personCertAreaList.isEmpty()
 
     class ActiveModel(
         @JvmField val id: String?,

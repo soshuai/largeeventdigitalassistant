@@ -25,6 +25,7 @@ import com.google.android.material.appbar.MaterialToolbar;
 import com.largeevent.management.camera.CameraCallback;
 import com.largeevent.management.camera.CameraHelper;
 import com.largeevent.management.data.AppPreferences;
+import com.largeevent.management.data.DevicePermissionHelper;
 import com.largeevent.management.data.InitializationRepository;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.CertificateInfo;
@@ -63,11 +64,13 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
     private TextView tvCertificateLabel;
     private TextView tvCertificateName;
     private TextView tvCertificateType;
+    private TextView tvIdNumber;
     private TextView tvNumber;
     private TextView tvCertificateChip;
     private TextView tvCertificateValidity;
-    private TextView tvVenuePermission;  // 场馆权限
-    private TextView tvCertificatePermission;  // 区域权限
+    private TextView tvVenuePermission;
+    private TextView tvPartitionPermission;
+    private TextView tvCertificatePermission;
     private TextView tvBindingAction;
     private VerificationResult currentResult;
     private InitializationRepository initRepository;
@@ -99,10 +102,12 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
         tvCertificateLabel = findViewById(R.id.tv_certificate_label);
         tvCertificateName = findViewById(R.id.tv_certificate_name);
         tvCertificateType = findViewById(R.id.tv_certificate_type);
+        tvIdNumber = findViewById(R.id.tv_id_number);
         tvNumber = findViewById(R.id.tv_number);
         tvCertificateChip = findViewById(R.id.tv_certificate_chip);
         tvCertificateValidity = findViewById(R.id.tv_certificate_validity);
         tvVenuePermission = findViewById(R.id.tv_venue_permission);
+        tvPartitionPermission = findViewById(R.id.tv_partition_permission);
         tvCertificatePermission = findViewById(R.id.tv_certificate_permission);
         tvBindingAction = findViewById(R.id.tv_binding_action);
 
@@ -182,7 +187,7 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
                 Glide.with(this).load(info.photoUrl).placeholder(R.drawable.ic_face_placeholder).error(R.drawable.ic_face_placeholder).centerCrop().into(ivPersonPhoto);
 
                 // 只有在核验失败且是人证不合一的情况下才显示更换按钮
-                boolean isFaceMismatch = result.type != VerificationResultType.PASS && (result.title != null && result.title.contains("人证不合一") || result.description != null && result.description.contains("人证不合一"));
+                boolean isFaceMismatch = result.type == VerificationResultType.FACE_MISMATCH;
                 btnChangePhoto.setVisibility(isFaceMismatch ? VISIBLE : View.GONE);
             } else {
                 //                ivPersonPhoto.setVisibility(View.GONE);
@@ -190,10 +195,23 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
             }
 
             tvCertificateName.setText(result.isVehicle() ? "单位：" + safe(info.name) : "姓名：" + safe(info.name));
-            tvCertificateType.setText(result.isVehicle() ? "车牌号码：" + safe(info.cardSerial) : "证件类型：" + safe(info.documentType));
+            if (result.isVehicle()) {
+                tvCertificateType.setText("车牌号码：" + safe(info.cardSerial));
+                tvIdNumber.setVisibility(View.GONE);
+            } else {
+                tvCertificateType.setText("身份证类型：" + safe(
+                        !TextUtils.isEmpty(info.identityDocumentType)
+                                ? info.identityDocumentType
+                                : info.documentType));
+                tvIdNumber.setVisibility(VISIBLE);
+                tvIdNumber.setText("身份证号码：" + safe(
+                        !TextUtils.isEmpty(info.identityDocumentNumber)
+                                ? info.identityDocumentNumber
+                                : info.cardSerial));
+            }
             tvCertificateChip.setText("芯片号：" + safe(info.chipId));
-            tvNumber.setText("编号："+safe(info.number));
             tvNumber.setVisibility(VISIBLE);
+            tvNumber.setText("编号：" + safe(info.certId));
             // 如果开始时间和结束时间都为空，显示"永久有效"
             if (TextUtils.isEmpty(info.validFrom) && TextUtils.isEmpty(info.validTo)) {
                 tvCertificateValidity.setText("有效时间：永久");
@@ -201,7 +219,6 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
                 tvCertificateValidity.setText("有效时间：" + safe(info.validFrom) + " ~ " + safe(info.validTo));
             }
 
-            // 显示场馆权限和区域权限
             displayPermissions(info);
         } else {
             //            ivPersonPhoto.setVisibility(View.GONE);
@@ -211,14 +228,17 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
                 tvCertificateType.setText("车牌号：--");
                 tvNumber.setText("编号：--");
                 tvNumber.setVisibility(VISIBLE);
-            }else{
+            } else {
                 tvCertificateName.setText("姓名：--");
-                tvCertificateType.setText("证件类型：--");
+                tvCertificateType.setText("身份证类型：--");
+                tvIdNumber.setVisibility(VISIBLE);
+                tvIdNumber.setText("身份证号码：--");
             }
             tvCertificateChip.setText("芯片号：--");
+            tvNumber.setVisibility(VISIBLE);
+            tvNumber.setText("编号：--");
             tvCertificateValidity.setText("有效时间：--");
-            tvVenuePermission.setText("场馆权限：--");
-            tvCertificatePermission.setText("区域权限：--");
+            setPermissionPlaceholders();
         }
 
         if (result.isBindingRequired()) {
@@ -270,219 +290,57 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
         return TextUtils.isEmpty(value) ? "--" : value;
     }
 
+    private void setPermissionPlaceholders() {
+        tvVenuePermission.setText("场馆权限：--");
+        tvPartitionPermission.setText("分区权限：--");
+        tvCertificatePermission.setText("区域权限：--");
+    }
+
+    private String formatPermissionLine(String label, String displayNames) {
+        if (TextUtils.isEmpty(displayNames)) {
+            return label + "无权限";
+        }
+        return label + displayNames;
+    }
+
     /**
-     * 显示场馆权限和区域权限
+     * 人证：展示 getActiveUser 返回的三类权限（code 转 name）；车证走原有逻辑。
      */
     private void displayPermissions(CertificateInfo info) {
         if (info == null) {
-            tvVenuePermission.setText("场馆权限：--");
-            tvCertificatePermission.setText("区域权限：--");
+            setPermissionPlaceholders();
             return;
         }
 
-        // 如果是车证，使用不同的逻辑
         if (currentResult != null && currentResult.isVehicle() && carDTO != null) {
+            tvPartitionPermission.setVisibility(View.GONE);
             displayCarPermissions(carDTO);
             return;
         }
 
+        tvPartitionPermission.setVisibility(VISIBLE);
         try {
-            // 获取基础信息
             BasicInfo basicInfo = initRepository.getBasicInfo();
             if (basicInfo == null) {
-                tvVenuePermission.setText("场馆权限：--");
-                tvCertificatePermission.setText("区域权限：--");
+                setPermissionPlaceholders();
                 return;
             }
 
-            // 获取 passRuleCode（可能是逗号分隔的列表）
-            String passRuleCode = info.passRuleCode;
-            if (TextUtils.isEmpty(passRuleCode)) {
-                tvVenuePermission.setText("场馆权限:无权限");
-                tvCertificatePermission.setText("区域权限:无权限");
-                return;
-            }
+            String venueNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
+                    info.venuePrivileges, basicInfo.getVenueInfoList());
+            String partitionNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
+                    info.areaPrivileges, basicInfo.getPersonCertAreaList());
+            String zoneNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
+                    info.zonePrivileges, basicInfo.getPersonCertZoneList());
 
-            // 特殊值 ALL：代表拥有所有权限，在详情中直接展示 ALL
-//            if ("ALL".equalsIgnoreCase(passRuleCode.trim())) {
-//                tvVenuePermission.setText("场馆权限：ALL");
-//                tvCertificatePermission.setText("区域权限：ALL");
-//                return;
-//            }
-
-            // 特殊值 ALL：代表拥有所有权限
-            if ("ALL".equalsIgnoreCase(passRuleCode.trim())) {
-                // 场馆名称集合
-                java.util.List<BasicInfo.ActiveVenueModel> venues = basicInfo.getActiveVenues();
-                java.util.List<String> venueNames = new java.util.ArrayList<>();
-                if (venues != null) {
-                    for (BasicInfo.ActiveVenueModel v : venues) {
-                        if (v != null && !TextUtils.isEmpty(v.venueName)) {
-                            venueNames.add(v.venueName);
-                        }
-                    }
-                }
-
-                // 区域名称集合
-                java.util.List<BasicInfo.PositionModel> positions = basicInfo.getPositions();
-                java.util.List<String> areaNames = new java.util.ArrayList<>();
-                if (positions != null) {
-                    for (BasicInfo.PositionModel p : positions) {
-                        if (p != null && !TextUtils.isEmpty(p.name)) {
-                            areaNames.add(p.name);
-                        }
-                    }
-                }
-
-                tvVenuePermission.setText("场馆权限：" +
-                        (venueNames.isEmpty() ? "无场馆" : TextUtils.join("、", venueNames)));
-                tvCertificatePermission.setText("区域权限：" +
-                        (areaNames.isEmpty() ? "无区域" : TextUtils.join("、", areaNames)));
-                return;
-            }
-
-            // 解析 passRuleCode 为 code 列表
-            String[] passRuleCodes = passRuleCode.split(",");
-            // ... existing code ...
-
-            // 收集所有 passPositionCode，并去重
-            Set<String> allPositionCodes = new java.util.HashSet<>();
-            List<BasicInfo.PassRuleModel> passRules = basicInfo.getPassRules();
-            Set<String> allVenueCodes = new java.util.HashSet<>();
-            List<BasicInfo.ActiveVenueModel> allVenues = basicInfo.getActiveVenues();
-            if (allVenues != null) {
-                for (BasicInfo.ActiveVenueModel v : allVenues) {
-                    if (v != null && !TextUtils.isEmpty(v.venueCode)) {
-                        allVenueCodes.add(v.venueCode);
-                    }
-                }
-            }
-            // 将 allPositionCodes 分为场馆code和区域code
-            Set<String> venueCodes = new java.util.HashSet<>();
-            Set<String> areaCodes = new java.util.HashSet<>();
-
-            if (passRules != null) {
-                for (String ruleCode : passRuleCodes) {
-                    String trimmedRuleCode = ruleCode.trim();
-                    if (TextUtils.isEmpty(trimmedRuleCode)) {
-                        continue;
-                    }
-                    //匹配场馆
-                    allVenueCodes.forEach(it -> {
-                        if (it.equals(ruleCode)) {
-                            venueCodes.add(it);
-                        }
-                    });
-
-
-                    // 查找匹配的 PassRuleModel
-                    for (BasicInfo.PassRuleModel rule : passRules) {
-                        if (rule != null && trimmedRuleCode.equals(rule.code)) {
-                            // 解析 passPositionCode 并添加到集合中
-                            if (!TextUtils.isEmpty(rule.passPositionCode)) {
-                                String[] positionCodes = rule.passPositionCode.split(",");
-                                for (String code : positionCodes) {
-                                    String trimmedCode = code.trim();
-                                    if (!TextUtils.isEmpty(trimmedCode)) {
-                                        allPositionCodes.add(trimmedCode);
-                                    }
-                                }
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (allPositionCodes.isEmpty()) {
-                tvVenuePermission.setText("场馆权限:无匹配规则");
-                tvCertificatePermission.setText("区域权限:无匹配规则");
-                return;
-            }
-
-            // 获取所有场馆和区域的code列表
-            Set<String> allAreaCodes = new java.util.HashSet<>();
-
-            List<BasicInfo.PositionModel> allPositions = basicInfo.getPositions();
-            if (allPositions != null) {
-                for (BasicInfo.PositionModel p : allPositions) {
-                    if (p != null && !TextUtils.isEmpty(p.positionCode)) {
-                        allAreaCodes.add(p.positionCode);
-                    }
-                }
-            }
-
-            // 分类：根据code在场馆列表或区域列表中的存在情况
-            for (String code : allPositionCodes) {
-                if (allAreaCodes.contains(code)) {
-                    areaCodes.add(code);
-                }
-            }
-            Log.d(TAG, "场馆 code 集合: " + venueCodes.toString());
-            Log.d(TAG, "区域 code 集合: " + areaCodes.toString());
-
-            // 特殊处理：如果包含 ALL，显示 ALL
-            if (allPositionCodes.contains("ALL")) {
-                tvVenuePermission.setText("场馆权限：ALL");
-                tvCertificatePermission.setText("区域权限：ALL");
-                return;
-            }
-
-            // 匹配场馆权限：根据 activeVenueModelList 的 venueCode
-            List<String> venueNames = new ArrayList<>();
-            // 复用前面定义的 allVenues
-
-            if (allVenues != null) {
-                for (String venueCode : venueCodes) {
-                    for (BasicInfo.ActiveVenueModel venue : allVenues) {
-                        if (venue != null && venueCode.equals(venue.venueCode)) {
-                            String venueName = venue.venueName;
-                            if (TextUtils.isEmpty(venueName)) {
-                                venueName = venue.venueCode;
-                            }
-                            venueNames.add(venueName);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // 显示场馆权限
-            if (venueNames.isEmpty()) {
-                tvVenuePermission.setText("场馆权限：无权限");
-            } else {
-                tvVenuePermission.setText("场馆权限：" + TextUtils.join("、", venueNames));
-            }
-
-            // 匹配区域权限：根据 positionModelList 的 positionCode
-            List<String> areaNames = new ArrayList<>();
-            // 复用前面定义的 allPositions
-
-            if (allPositions != null) {
-                for (String areaCode : areaCodes) {
-                    for (BasicInfo.PositionModel pos : allPositions) {
-                        if (pos != null && areaCode.equals(pos.positionCode)) {
-                            String areaName = pos.name;
-                            if (TextUtils.isEmpty(areaName)) {
-                                areaName = pos.positionCode;
-                            }
-                            areaNames.add(areaName);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // 显示区域权限
-            if (areaNames.isEmpty()) {
-                tvCertificatePermission.setText("区域权限：无权限");
-            } else {
-                tvCertificatePermission.setText("区域权限：" + TextUtils.join("、", areaNames));
-            }
+            tvVenuePermission.setText(formatPermissionLine("场馆权限：", venueNames));
+            tvPartitionPermission.setText(formatPermissionLine("分区权限：", partitionNames));
+            tvCertificatePermission.setText(formatPermissionLine("区域权限：", zoneNames));
         } catch (Exception e) {
             Log.e(TAG, "Failed to display permissions", e);
-            tvVenuePermission.setText("场馆权限:解析失败");
-            tvCertificatePermission.setText("区域权限:解析失败");
+            tvVenuePermission.setText("场馆权限：解析失败");
+            tvPartitionPermission.setText("分区权限：解析失败");
+            tvCertificatePermission.setText("区域权限：解析失败");
         }
     }
 
@@ -491,8 +349,7 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
      */
     private void displayCarPermissions(CarCertificateDTO carDTO) {
         if (carDTO == null) {
-            tvVenuePermission.setText("场馆权限：--");
-            tvCertificatePermission.setText("区域权限：--");
+            setPermissionPlaceholders();
             return;
         }
 

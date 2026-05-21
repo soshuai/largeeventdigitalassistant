@@ -34,13 +34,69 @@ class ActiveUserBaseDTO { // Getters
     @JvmField
     var organization: String? = null
 
-    /** 证件类型  */
+    /** 证件类型（旧字段，兼容）  */
     @JvmField
     var idType: String? = null
 
-    /** 证件号码  */
+    /** 证件号码（旧字段，兼容）  */
     @JvmField
     var idNumber: String? = null
+
+    /** 身份证类型（getActiveUser 标准字段）  */
+    @JvmField
+    var identityDocumentType: String? = null
+
+    /** 身份证号码（getActiveUser 标准字段）  */
+    @JvmField
+    var identityDocumentNumber: String? = null
+
+    /** 注册编号  */
+    @JvmField
+    var registrationNumber: String? = null
+
+    /** 通行证类型 MP/TP/VP  */
+    @JvmField
+    var passType: String? = null
+
+    /** 中文姓  */
+    @JvmField
+    var familyNameChinese: String? = null
+
+    /** 中文名  */
+    @JvmField
+    var givenNameChinese: String? = null
+
+    /** 英文姓  */
+    @JvmField
+    var familyNameInEnglish: String? = null
+
+    /** 英文名  */
+    @JvmField
+    var givenNameInEnglish: String? = null
+
+    @JvmField
+    var preferredChineseFamilyName: String? = null
+
+    @JvmField
+    var preferredChineseGivenName: String? = null
+
+    @JvmField
+    var preferredFamilyName: String? = null
+
+    @JvmField
+    var preferredGivenName: String? = null
+
+    /** 芯片号（接口字段 chipid）  */
+    @JvmField
+    var chipid: String? = null
+
+    /** 活动 ID（接口字段 activityId）  */
+    @JvmField
+    var activityId: String? = null
+
+    /** 证件缩略图 URL  */
+    @JvmField
+    var cardReduceImage: String? = null
 
     @JvmField
     var number: String? = null
@@ -178,6 +234,10 @@ class ActiveUserBaseDTO { // Getters
     /** 分区权限  */
     @JvmField
     var zonePrivileges: String? = null
+
+    /** 分项权限（与 matrixAuth.sportProject 对应，可选）  */
+    @JvmField
+    var sportPrivileges: String? = null
 
     /** 座位权限  */
     @JvmField

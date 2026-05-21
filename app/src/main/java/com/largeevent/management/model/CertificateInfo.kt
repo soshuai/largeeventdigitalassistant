@@ -10,6 +10,10 @@ class CertificateInfo(
     @JvmField val name: String?,
     @JvmField val number: String?,
     @JvmField val documentType: String?,
+    /** 身份证类型（对应 identityDocumentType） */
+    @JvmField val identityDocumentType: String?,
+    /** 身份证号码（对应 identityDocumentNumber） */
+    @JvmField val identityDocumentNumber: String?,
     @JvmField val chipId: String?,
     @JvmField val cardSerial: String?,
     @JvmField val validFrom: String?,
@@ -24,6 +28,7 @@ class CertificateInfo(
     @JvmField val venuePrivileges: String?,
     @JvmField val areaPrivileges: String?,
     @JvmField val zonePrivileges: String?,
+    @JvmField val sportPrivileges: String?,
     @JvmField val effectiveDateOfDayPass: String?
 ) : Serializable {
     @JvmField
@@ -86,6 +91,8 @@ class CertificateInfo(
         private var name: String? = null
         private var number: String? = null
         private var documentType: String? = null
+        private var identityDocumentType: String? = null
+        private var identityDocumentNumber: String? = null
         private var chipId: String? = null
         private var cardSerial: String? = null
         private var validFrom: String? = null
@@ -100,6 +107,7 @@ class CertificateInfo(
         private var venuePrivileges: String? = null
         private var areaPrivileges: String? = null
         private var zonePrivileges: String? = null
+        private var sportPrivileges: String? = null
         private var effectiveDateOfDayPass: String? = null
 
         fun setCertId(certId: String?): Builder {
@@ -119,6 +127,16 @@ class CertificateInfo(
 
         fun setDocumentType(documentType: String?): Builder {
             this.documentType = documentType
+            return this
+        }
+
+        fun setIdentityDocumentType(identityDocumentType: String?): Builder {
+            this.identityDocumentType = identityDocumentType
+            return this
+        }
+
+        fun setIdentityDocumentNumber(identityDocumentNumber: String?): Builder {
+            this.identityDocumentNumber = identityDocumentNumber
             return this
         }
 
@@ -194,6 +212,11 @@ class CertificateInfo(
             return this
         }
 
+        fun setSportPrivileges(sportPrivileges: String?): Builder {
+            this.sportPrivileges = sportPrivileges
+            return this
+        }
+
         fun setEffectiveDateOfDayPass(effectiveDateOfDayPass: String?): Builder {
             this.effectiveDateOfDayPass = effectiveDateOfDayPass
             return this
@@ -205,6 +228,8 @@ class CertificateInfo(
                 name,
                 number,
                 documentType,
+                identityDocumentType,
+                identityDocumentNumber,
                 chipId,
                 cardSerial,
                 validFrom,
@@ -219,6 +244,7 @@ class CertificateInfo(
                 venuePrivileges,
                 areaPrivileges,
                 zonePrivileges,
+                sportPrivileges,
                 effectiveDateOfDayPass
             )
         }

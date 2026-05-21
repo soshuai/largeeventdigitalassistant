@@ -27,8 +27,11 @@ import com.google.gson.Gson;
 import com.largeevent.management.camera.CameraCallback;
 import com.largeevent.management.camera.CameraHelper;
 import com.largeevent.management.data.ActiveUserParser;
+import com.largeevent.management.data.ActiveUserResolver;
 import com.largeevent.management.data.AppPreferences;
+import com.largeevent.management.data.DevicePermissionHelper;
 import com.largeevent.management.data.InitializationRepository;
+import com.largeevent.management.data.PersonVerificationHelper;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.CertificateInfo;
 import com.largeevent.management.model.VerificationResult;
@@ -270,9 +273,11 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             return;
         }
 
+        final String resolvedActiveId = activeId;
+
         // 使用 ApiService 调用接口，传入 activeId 和 chipId
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ApiResponse<List<ActiveUserBaseDTO>>> call = apiService.getActiveUser(activeId, chipId);
+        Call<ApiResponse<List<ActiveUserBaseDTO>>> call = apiService.getActiveUser(resolvedActiveId, chipId);
 
         call.enqueue(new Callback<ApiResponse<List<ActiveUserBaseDTO>>>() {
             @Override
@@ -300,10 +305,15 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
                         return;
                     }
 
-                    // 获取第一条数据（应该只有一条）
-                    ActiveUserBaseDTO userDTO = userList.get(0);
+                    String subUnit = AppPreferences.getSelectedSubUnitName(requireContext(), resolvedActiveId);
+                    ActiveUserBaseDTO userDTO = ActiveUserResolver.resolve(userList, chipId, subUnit);
+                    if (userDTO == null) {
+                        setVerifying(false);
+                        openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "无效证件", "系统中未找到该证件信息", null), "无效证件");
+                        return;
+                    }
 
-                    // 保存用户数据以便后续使用
+                    ActiveUserParser.normalizeActiveUserDto(userDTO);
                     currentUserDTO = userDTO;
 
                     // 从 VO 构建 CertificateInfo
@@ -327,14 +337,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     }
 
     /**
-     * 继续后续验证流程（新版验证规则）
-     * 验证逻辑：
-     * 1. 验证是否注销（EventStatus=6）
-     * 2. 验证黑名单（BlackSign=1）
-     * 3. 验证证件有效期（TP验证effectiveDateOfDayPass是否为当日，MP/VP验证时间范围）
-     * 4. 验证证件权限
-     * 5. 验证证件类型（VP直接通行，TP验证绑定，MP进入下一步）
-     * 6. 验证人证合一
+     * 继续后续验证流程（新版通用验证规则 + 证件类型 + 人证合一）。
      */
     private void continueVerification(CertificateInfo info, ActiveUserBaseDTO userDTO) {
         if (info == null || userDTO == null) {
@@ -343,138 +346,43 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             return;
         }
 
-        String mainAppTypeCode = userDTO.mainAppTypeCode;
+        String activeId = AppPreferences.getLastActiveId(requireContext());
+        BasicInfo basicInfo = initializationRepository.getBasicInfo();
+        DevicePermissionHelper.PermissionSets device = DevicePermissionHelper.resolveDevicePermissions(requireContext(), activeId, basicInfo);
 
-        // 1. 验证注销状态（EventStatus=6 表示已注销）
-        if (userDTO.eventStatus == 6) {
+        PersonVerificationHelper.StepResult step = PersonVerificationHelper.runCommonRules(requireContext(), activeId, userDTO, device);
+
+        if (step.step == PersonVerificationHelper.Step.VP_PASS || step.step == PersonVerificationHelper.Step.TP_PASS) {
             setVerifying(false);
-            openResult(new VerificationResult(VerificationResultType.CANCELED, "证件已注销", "证件已注销", info), "证件已注销");
+            openResult(PersonVerificationHelper.buildVerificationResult(step, info, currentChipId), PersonVerificationHelper.passTitle());
             return;
         }
 
-        // 2. 验证黑名单状态（BlackSign=1 表示黑名单）
-        if (userDTO.blackSign == 1) {
+        if (step.step != PersonVerificationHelper.Step.NEED_FACE_VERIFY) {
             setVerifying(false);
-            openResult(new VerificationResult(VerificationResultType.BLACKLIST, "限制通行", "该人员已被列入黑名单", info), "限制通行");
+            openResult(PersonVerificationHelper.buildVerificationResult(step, info, currentChipId), step.title != null ? step.title : "");
             return;
         }
 
-        // 3. 验证证件有效期（TP验证effectiveDateOfDayPass是否为当日，MP/VP验证时间范围）
-        if ("02".equals(mainAppTypeCode)) {
-            // TP - 当日临通卡：验证effectiveDateOfDayPass是否为当日
-            if (!isTodayValid(userDTO.effectiveDateOfDayPass)) {
-                setVerifying(false);
-                openResult(new VerificationResult(VerificationResultType.EXPIRED, "无效证件", "日通行证不在有效期内", info), "日通行证已过期");
-                return;
-            }
-        } else {
-            // MP、VP：验证开始时间和结束时间
-            if (!isValidPeriod(userDTO.validBegin, userDTO.validEnd)) {
-                setVerifying(false);
-                openResult(new VerificationResult(VerificationResultType.EXPIRED, "无效证件", "证件已过期", info), "证件已过期");
-                return;
-            }
-        }
-
-        // 4. 验证证件权限
-        if (!hasRequiredAreaPermission(info)) {
-            setVerifying(false);
-            openResult(new VerificationResult(VerificationResultType.PERMISSION_DENIED, "无权通行", "权限不足", info), "无权通行");
-            return;
-        }
-
-        // 5. 验证证件类型（VP直接通行，TP验证绑定，MP进入下一步）
-        if ("03".equals(mainAppTypeCode)) {
-            // VP - VIP卡（无需实名）：读卡即可通行，直接开闸
-            setVerifying(false);
-            openResult(new VerificationResult(VerificationResultType.PASS, "核验通过", "", info), "核验通过，请通行");
-            return;
-        }
-
-        if ("02".equals(mainAppTypeCode)) {
-            // TP - 当日临通卡（现场绑定）：需绑定实名，未绑定不允许通行
-            if (!"0".equals(userDTO.bindStatus)) {
-                setVerifying(false);
-                openResult(new VerificationResult(VerificationResultType.UNBOUND, "未实名绑定", "请先完成实名绑定", info, true, currentChipId), "未实名绑定");
-                return;
-            }
-            // TP绑定后直接验证权限并开闸（TP不需要人证合一）
-            setVerifying(false);
-            openResult(new VerificationResult(VerificationResultType.PASS, "核验通过", "", info), "核验通过，请通行");
-            return;
-        }
-
-        // MP - 实名注册卡：需人证合一
-        // 6. 证件激活状态检查（EventStatus<=4 表示未激活，该判断是可选配置）
-        boolean enableActivationCheck = true;
-        if (enableActivationCheck && userDTO.eventStatus > 0 && userDTO.eventStatus <= 4) {
-            setVerifying(false);
-            openResult(new VerificationResult(VerificationResultType.NOT_ACTIVATED, "证件未激活", "请先激活证件", info), "证件未激活");
-            return;
-        }
-
-        // 7. 人证合一验证
         evaluateWithFaceVerification(info, userDTO);
     }
 
     /**
-     * 验证TP日卡是否当日有效
-     */
-    private boolean isTodayValid(String effectiveDateOfDayPass) {
-        if (TextUtils.isEmpty(effectiveDateOfDayPass)) {
-            return true;
-        }
-        try {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-            String todayStr = sdf.format(new Date());
-            return todayStr.equals(effectiveDateOfDayPass);
-        } catch (Exception e) {
-            return true;
-        }
-    }
-
-    /**
-     * 验证有效期（MP/VP证件）
-     * 如果开始时间和结束时间为空，证件就是长期有效
-     */
-    private boolean isValidPeriod(String validBegin, String validEnd) {
-        if (TextUtils.isEmpty(validBegin) && TextUtils.isEmpty(validEnd)) {
-            return true;
-        }
-
-        try {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
-            Date now = new Date();
-
-            if (!TextUtils.isEmpty(validBegin)) {
-                Date begin = sdf.parse(validBegin);
-                if (begin != null && now.before(begin)) {
-                    return false;
-                }
-            }
-
-            if (!TextUtils.isEmpty(validEnd)) {
-                Date end = sdf.parse(validEnd);
-                if (end != null && now.after(end)) {
-                    return false;
-                }
-            }
-
-            return true;
-        } catch (Exception e) {
-            Log.e(TAG, "Parse valid period failed", e);
-            return true;
-        }
-    }
-
-    /**
-     * 需要人证合一的验证流程（拍照非必须）
+     * MP 人证合一：通道/闸机强制；手持有拍照则比对。
      */
     private void evaluateWithFaceVerification(CertificateInfo info, ActiveUserBaseDTO userDTO) {
-        // 检查是否已拍照，如果没拍照，直接跳过人脸比对，只验证权限
-        if (TextUtils.isEmpty(latestPhotoPath)) {
-            Log.d(TAG, "未拍照，跳过人脸比对，直接验证权限");
-            evaluatePermissionOnly(info, userDTO);
+        String activeId = AppPreferences.getLastActiveId(requireContext());
+        boolean hasPhoto = !TextUtils.isEmpty(latestPhotoPath);
+
+        if (!PersonVerificationHelper.isFaceVerifyRequired(requireContext(), activeId, hasPhoto)) {
+            Log.d(TAG, "跳过人证合一, hasPhoto=" + hasPhoto);
+            finishPass(info);
+            return;
+        }
+
+        if (PersonVerificationHelper.isFaceVerifyMandatory(requireContext(), activeId) && !hasPhoto) {
+            setVerifying(false);
+            openResult(new VerificationResult(VerificationResultType.FACE_MISMATCH, PersonVerificationHelper.faceMismatchTitle(requireContext(), activeId), "请先拍照进行人证比对", info), "请检查证件");
             return;
         }
 
@@ -579,13 +487,13 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
                     // score >= 80 才算成功
                     if (score < 80) {
                         setVerifying(false);
-                        openResult(new VerificationResult(VerificationResultType.FACE_MISMATCH, "请检查证件", "人证不合一", info), "人证不合一");
+                        String activeId = AppPreferences.getLastActiveId(requireContext());
+                        openResult(new VerificationResult(VerificationResultType.FACE_MISMATCH, PersonVerificationHelper.faceMismatchTitle(requireContext(), activeId), PersonVerificationHelper.faceMismatchDescription(requireContext(), activeId), info), "请检查证件");
                         return;
                     }
 
-                    // 人脸比对通过，继续验证权限
                     Log.d(TAG, "Face match passed, score: " + score);
-                    evaluatePermissionOnly(info, userDTO);
+                    finishPass(info);
                 });
             }
 
@@ -602,20 +510,9 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
         });
     }
 
-    /**
-     * 只验证权限，不需要人证合一
-     */
-    private void evaluatePermissionOnly(CertificateInfo info, ActiveUserBaseDTO userDTO) {
+    private void finishPass(CertificateInfo info) {
         setVerifying(false);
-
-        // 验证权限
-        if (hasRequiredAreaPermission(info)) {
-            // 权限通过
-            openResult(new VerificationResult(VerificationResultType.PASS, "核验通过", "", info), "核验通过，请通行");
-        } else {
-            // 权限不足
-            openResult(new VerificationResult(VerificationResultType.PERMISSION_DENIED, "权限不足", "", info), "无权通行");
-        }
+        openResult(new VerificationResult(VerificationResultType.PASS, PersonVerificationHelper.passTitle(), "", info), PersonVerificationHelper.passTitle());
     }
 
     private void openResult(VerificationResult result, String recordDesc) {
@@ -798,157 +695,26 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
         }
 
         try {
-            // 从 BasicInfo 获取设备的权限配置（matrixAuthInfoList）
+            String currentActiveId = AppPreferences.getLastActiveId(requireContext());
             BasicInfo basicInfo = initializationRepository.getBasicInfo();
-            if (basicInfo == null || basicInfo.getMatrixAuthInfoList() == null || basicInfo.getMatrixAuthInfoList().isEmpty()) {
-                Log.i(TAG, "权限校验通过: 未配置设备权限（matrixAuthInfoList为空）");
+            com.largeevent.management.data.DevicePermissionHelper.PermissionSets device = com.largeevent.management.data.DevicePermissionHelper.resolveDevicePermissions(requireContext(), currentActiveId, basicInfo);
+
+            if (device.isEmpty()) {
+                Log.i(TAG, "权限校验通过: 设备未配置场馆/区域/分区权限要求");
                 return true;
             }
 
-            // 从 matrixAuthInfoList 提取设备的权限要求
-            Set<String> deviceVenues = new java.util.HashSet<>();
-            Set<String> deviceAreas = new java.util.HashSet<>();
-            Set<String> devicePartitions = new java.util.HashSet<>();
+            Log.d(TAG, "开始权限校验");
+            Log.d(TAG, "设备场馆权限(code): " + device.venueCodes);
+            Log.d(TAG, "设备区域权限(code, venuePartition): " + device.zoneCodes);
+            Log.d(TAG, "设备分区权限(code, venueArea): " + device.partitionCodes);
+            Log.d(TAG, "证件场馆(venuePrivileges): " + info.venuePrivileges);
+            Log.d(TAG, "证件分区(areaPrivileges): " + info.areaPrivileges);
+            Log.d(TAG, "证件区域(zonePrivileges): " + info.zonePrivileges);
 
-            for (BasicInfo.MatrixAuthInfo authInfo : basicInfo.getMatrixAuthInfoList()) {
-                if (authInfo != null) {
-                    // venue - 场馆权限
-                    if (!TextUtils.isEmpty(authInfo.venue)) {
-                        deviceVenues.add(authInfo.venue.trim());
-                    }
-                    // venueArea - 分区权限
-                    if (!TextUtils.isEmpty(authInfo.venueArea)) {
-                        deviceAreas.add(authInfo.venueArea.trim());
-                    }
-                    // venuePartition - 区域权限
-                    if (!TextUtils.isEmpty(authInfo.venuePartition)) {
-                        devicePartitions.add(authInfo.venuePartition.trim());
-                    }
-                }
-            }
+            boolean finalResult = DevicePermissionHelper.certificateMatchesDevice(info.venuePrivileges, info.areaPrivileges, info.zonePrivileges, info.sportPrivileges, device, true);
 
-            Log.d(TAG, "开始权限校验（使用 matrixAuthInfoList）");
-            Log.d(TAG, "设备场馆权限: " + deviceVenues);
-            Log.d(TAG, "设备分区权限(venueArea): " + deviceAreas);
-            Log.d(TAG, "设备区域权限(venuePartition): " + devicePartitions);
-
-            // 如果没有配置任何权限，则通过
-            if (deviceVenues.isEmpty() && deviceAreas.isEmpty() && devicePartitions.isEmpty()) {
-                Log.i(TAG, "权限校验通过: 设备未配置任何权限要求");
-                return true;
-            }
-
-            // 从 CertificateInfo 获取证件权限
-            String venuePrivileges = info.venuePrivileges;
-            String areaPrivileges = info.areaPrivileges;
-            String zonePrivileges = info.zonePrivileges;
-
-            Log.d(TAG, "证件场馆权限(venuePrivileges): " + venuePrivileges);
-            Log.d(TAG, "证件分区权限(areaPrivileges): " + areaPrivileges);
-            Log.d(TAG, "证件区域权限(zonePrivileges): " + zonePrivileges);
-
-            // 解析证件的场馆权限列表
-            Set<String> certVenueSet = new java.util.HashSet<>();
-            if (!TextUtils.isEmpty(venuePrivileges)) {
-                String[] venues = venuePrivileges.split(",");
-                for (String v : venues) {
-                    String trimmed = v.trim();
-                    if (!TextUtils.isEmpty(trimmed)) {
-                        certVenueSet.add(trimmed);
-                    }
-                }
-            }
-
-            // 解析证件的分区权限列表（对应 venueArea）
-            Set<String> certAreaSet = new java.util.HashSet<>();
-            if (!TextUtils.isEmpty(areaPrivileges)) {
-                String[] areas = areaPrivileges.split(",");
-                for (String a : areas) {
-                    String trimmed = a.trim();
-                    if (!TextUtils.isEmpty(trimmed)) {
-                        certAreaSet.add(trimmed);
-                    }
-                }
-            }
-
-            // 解析证件的区域权限列表（对应 venuePartition）
-            Set<String> certZoneSet = new java.util.HashSet<>();
-            if (!TextUtils.isEmpty(zonePrivileges)) {
-                String[] zones = zonePrivileges.split(",");
-                for (String z : zones) {
-                    String trimmed = z.trim();
-                    if (!TextUtils.isEmpty(trimmed)) {
-                        certZoneSet.add(trimmed);
-                    }
-                }
-            }
-
-            // 特殊规则：权限为 ALL 则拥有所有权限
-            if (certVenueSet.contains("ALL") || certAreaSet.contains("ALL") || certZoneSet.contains("ALL")) {
-                Log.i(TAG, "检测到 ALL 权限，视为拥有全部权限，直接通过");
-                return true;
-            }
-
-            Log.d(TAG, "证件场馆权限列表: " + certVenueSet);
-            Log.d(TAG, "证件分区权限列表: " + certAreaSet);
-            Log.d(TAG, "证件区域权限列表: " + certZoneSet);
-
-            // 检查场馆权限匹配
-            boolean venueMatched = true;
-            if (!deviceVenues.isEmpty()) {
-                venueMatched = false;
-                for (String deviceVenue : deviceVenues) {
-                    if (certVenueSet.contains(deviceVenue)) {
-                        venueMatched = true;
-                        Log.d(TAG, "场馆权限匹配成功: " + deviceVenue);
-                        break;
-                    }
-                }
-                Log.i(TAG, "场馆权限校验结果: " + (venueMatched ? "通过" : "不通过"));
-            } else {
-                Log.i(TAG, "场馆权限校验结果: 通过 (未配置场馆权限要求)");
-            }
-
-            // 检查分区权限匹配（venueArea）
-            boolean areaMatched = true;
-            if (!deviceAreas.isEmpty()) {
-                areaMatched = false;
-                for (String deviceArea : deviceAreas) {
-                    if (certAreaSet.contains(deviceArea)) {
-                        areaMatched = true;
-                        Log.d(TAG, "分区权限匹配成功: " + deviceArea);
-                        break;
-                    }
-                }
-                Log.i(TAG, "分区权限校验结果: " + (areaMatched ? "通过" : "不通过"));
-            } else {
-                Log.i(TAG, "分区权限校验结果: 通过 (未配置分区权限要求)");
-            }
-
-            // 检查区域权限匹配（venuePartition）
-            boolean partitionMatched = true;
-            if (!devicePartitions.isEmpty()) {
-                partitionMatched = false;
-                for (String devicePartition : devicePartitions) {
-                    if (certZoneSet.contains(devicePartition)) {
-                        partitionMatched = true;
-                        Log.d(TAG, "区域权限匹配成功: " + devicePartition);
-                        break;
-                    }
-                }
-                Log.i(TAG, "区域权限校验结果: " + (partitionMatched ? "通过" : "不通过"));
-            } else {
-                Log.i(TAG, "区域权限校验结果: 通过 (未配置区域权限要求)");
-            }
-
-            // 场馆、分区、区域权限都要匹配才能通过
-            boolean finalResult = venueMatched && areaMatched && partitionMatched;
-            Log.i(TAG, "==================================================");
-            Log.i(TAG, "最终权限校验结果: " + (finalResult ? "通过 ✓" : "不通过 ✗"));
-            Log.i(TAG, "  - 场馆权限: " + (venueMatched ? "通过" : "不通过"));
-            Log.i(TAG, "  - 分区权限: " + (areaMatched ? "通过" : "不通过"));
-            Log.i(TAG, "  - 区域权限: " + (partitionMatched ? "通过" : "不通过"));
-            Log.i(TAG, "==================================================");
+            Log.i(TAG, "最终权限校验结果: " + (finalResult ? "通过" : "不通过"));
             return finalResult;
 
         } catch (Exception e) {

@@ -28,14 +28,14 @@ class BasicInfoParser {
 
     static BasicInfo parse(String payload) throws JSONException {
         if (TextUtils.isEmpty(payload)) {
-            return new BasicInfo(null, null, null, null, null, null, null, null, null, null, null);
+            return new BasicInfo(null, null, null, null, null, null, null, null, null, null, null, null, null);
         }
         JSONObject root = new JSONObject(payload);
         if (root.has("data")) {
             root = root.optJSONObject("data");
         }
         if (root == null) {
-            return new BasicInfo(null, null, null, null, null, null, null, null, null, null, null);
+            return new BasicInfo(null, null, null, null, null, null, null, null, null, null, null, null, null);
         }
         
         List<ActiveModel> activeModels = parseActiveModels(root.optJSONArray("activeModelList"));
@@ -50,9 +50,12 @@ class BasicInfoParser {
         List<MatrixAuthInfo> matrixAuthInfoList = parseMatrixAuthInfoList(root.optJSONArray("matrixAuthInfoList"));
         List<EpidemicInfo> epidemicInfoList = parseEpidemicInfoList(root.optJSONArray("epidemicInfoList"));
         List<VenueInfo> venueInfoList = parseVenueInfoList(root.optJSONArray("venueInfoList"));
+        List<VenueInfo> personCertZoneList = parseVenueInfoList(root.optJSONArray("personCertZoneList"));
+        List<VenueInfo> personCertAreaList = parseVenueInfoList(root.optJSONArray("personCertAreaList"));
         
         return new BasicInfo(activeModels, venueModels, positions, passRules, cartTypes, 
-                personCertTypes, carCertTypes, locationInfoList, matrixAuthInfoList, epidemicInfoList, venueInfoList);
+                personCertTypes, carCertTypes, locationInfoList, matrixAuthInfoList, epidemicInfoList,
+                venueInfoList, personCertZoneList, personCertAreaList);
     }
 
     private static List<ActiveModel> parseActiveModels(JSONArray array) {

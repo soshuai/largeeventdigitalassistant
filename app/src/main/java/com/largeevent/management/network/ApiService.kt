@@ -17,7 +17,7 @@ interface ApiService {
      * @return 活动信息列表
      */
     @GET("androidNew/api/getActiveInfo")
-    fun getActiveInfo(): Call<ApiResponse<MutableList<BasicInfo.ActiveModel?>?>?>?
+    fun getActiveInfo(): Call<ApiResponse<MutableList<ActiveInfoDTO?>?>?>?
 
     /**
      * 获取基础信息
@@ -26,6 +26,17 @@ interface ApiService {
      */
     @GET("androidNew/api/getBasicInfo")
     fun getBasicInfo(@Query("activityId") activityId: String?): Call<ResponseBody?>?
+
+    /**
+     * 获取设备通行权限信息
+     * @param activityId 活动ID
+     * @param eqpId 设备ID
+     */
+    @GET("androidNew/api/getMatrixAuthInfoList")
+    fun getMatrixAuthInfoList(
+        @Query("activityId") activityId: String?,
+        @Query("eqpId") eqpId: String?
+    ): Call<ApiResponse<MutableList<MatrixAuthInfoDTO?>?>?>?
 
     /**
      * 获取活动人员数据

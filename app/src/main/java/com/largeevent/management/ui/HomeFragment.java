@@ -337,11 +337,11 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
 
         // 第一步：获取活动列表
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ApiResponse<List<BasicInfo.ActiveModel>>> call = apiService.getActiveInfo();
+        Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call = apiService.getActiveInfo();
         
-        call.enqueue(new Callback<ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>>>() {
+        call.enqueue(new Callback<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>>() {
             @Override
-            public void onResponse(@NonNull Call<ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>>> call, @NonNull Response<ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>>> response) {
+            public void onResponse(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call, @NonNull Response<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> response) {
                 if (!isAdded()) return;
                 
                 try {
@@ -349,29 +349,24 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
                         throw new IOException("获取活动列表失败，状态码：" + response.code());
                     }
                     
-                    ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>> apiResponse = response.body();
+                    ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>> apiResponse = response.body();
                     if (apiResponse == null || apiResponse.getCode() != 200) {
                         throw new IOException(apiResponse != null ? apiResponse.getMessage() : "活动列表接口返回错误");
                     }
                     
-                    List<com.largeevent.management.model.BasicInfo.ActiveModel> activeList = apiResponse.getData();
+                    List<com.largeevent.management.network.dto.ActiveInfoDTO> activeList = apiResponse.getData();
                     if (activeList == null || activeList.isEmpty()) {
                         throw new IOException("活动列表为空");
                     }
                     
                     updateProgress(30);
                     
-                    // 保存活动列表
-                    org.json.JSONArray jsonArray = new org.json.JSONArray();
-                    com.google.gson.Gson gson = new com.google.gson.Gson();
-                    for (com.largeevent.management.model.BasicInfo.ActiveModel model : activeList) {
-                        String json = gson.toJson(model);
-                        jsonArray.put(new org.json.JSONObject(json));
-                    }
-                    repository.saveActiveList(baseUrl, jsonArray.toString());
+                    repository.saveActiveList(baseUrl,
+                            com.largeevent.management.data.ActiveInfoMapper.toJsonArrayString(activeList));
                     
                     // 选择第一个活动并保存
-                    com.largeevent.management.model.BasicInfo.ActiveModel firstActive = activeList.get(0);
+                    com.largeevent.management.model.BasicInfo.ActiveModel firstActive =
+                            com.largeevent.management.data.ActiveInfoMapper.toActiveModel(activeList.get(0));
                     String eventCode = firstActive.id;  // 使用活动ID作为eventCode
                     if (!TextUtils.isEmpty(eventCode)) {
                         AppPreferences.setLastActiveId(requireContext(), firstActive.id);
@@ -389,7 +384,7 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
             }
 
             @Override
-            public void onFailure(@NonNull Call<ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>>> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call, @NonNull Throwable t) {
                 if (!isAdded()) return;
                 handleInitializationError("网络错误：" + t.getMessage());
             }
@@ -450,11 +445,11 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
     // 仅获取活动列表（用于定时刷新）
     private void fetchActiveList(String baseUrl) {
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>>> call = apiService.getActiveInfo();
+        Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call = apiService.getActiveInfo();
         
-        call.enqueue(new Callback<ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>>>() {
+        call.enqueue(new Callback<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>>() {
             @Override
-            public void onResponse(@NonNull Call<ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>>> call, @NonNull Response<ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>>> response) {
+            public void onResponse(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call, @NonNull Response<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> response) {
                 if (!isAdded()) return;
                 
                 try {
@@ -463,26 +458,20 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
                         return;
                     }
                     
-                    ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>> apiResponse = response.body();
+                    ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>> apiResponse = response.body();
                     if (apiResponse == null || apiResponse.getCode() != 200) {
                         android.util.Log.w("HomeFragment", "自动刷新活动列表失败：" + (apiResponse != null ? apiResponse.getMessage() : "接口返回错误"));
                         return;
                     }
                     
-                    List<com.largeevent.management.model.BasicInfo.ActiveModel> activeList = apiResponse.getData();
+                    List<com.largeevent.management.network.dto.ActiveInfoDTO> activeList = apiResponse.getData();
                     if (activeList == null || activeList.isEmpty()) {
                         android.util.Log.w("HomeFragment", "自动刷新活动列表为空");
                         return;
                     }
                     
-                    // 保存活动列表
-                    org.json.JSONArray jsonArray = new org.json.JSONArray();
-                    com.google.gson.Gson gson = new com.google.gson.Gson();
-                    for (com.largeevent.management.model.BasicInfo.ActiveModel model : activeList) {
-                        String json = gson.toJson(model);
-                        jsonArray.put(new org.json.JSONObject(json));
-                    }
-                    repository.saveActiveList(baseUrl, jsonArray.toString());
+                    repository.saveActiveList(baseUrl,
+                            com.largeevent.management.data.ActiveInfoMapper.toJsonArrayString(activeList));
                     android.util.Log.d("HomeFragment", "自动刷新活动列表成功");
                 } catch (JSONException e) {
                     android.util.Log.w("HomeFragment", "自动刷新活动列表失败：" + e.getMessage());
@@ -490,7 +479,7 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
             }
 
             @Override
-            public void onFailure(@NonNull Call<ApiResponse<List<com.largeevent.management.model.BasicInfo.ActiveModel>>> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call, @NonNull Throwable t) {
                 if (!isAdded()) return;
                 android.util.Log.w("HomeFragment", "自动刷新活动列表网络错误：" + t.getMessage());
             }

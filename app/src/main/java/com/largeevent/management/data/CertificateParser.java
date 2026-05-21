@@ -46,6 +46,8 @@ class CertificateParser {
                     .setName(item.optString("name"))
                     .setNumber(item.optString("number"))
                     .setDocumentType(item.optString("documentType", item.optString("docType")))
+                    .setIdentityDocumentType(item.optString("identityDocumentType"))
+                    .setIdentityDocumentNumber(item.optString("identityDocumentNumber"))
                     .setChipId(item.optString("chipId", item.optString("chip_id")))
                     .setCardSerial(item.optString("cardNo", item.optString("cardSerial")))
                     .setValidFrom(item.optString("validFrom", item.optString("startTime")))

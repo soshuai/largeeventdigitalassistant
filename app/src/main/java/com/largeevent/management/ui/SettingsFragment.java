@@ -22,15 +22,16 @@ import androidx.fragment.app.Fragment;
 import com.largeevent.management.DataDetailEntryActivity;
 import com.largeevent.management.EventSettingsActivity;
 import com.largeevent.management.R;
+import com.largeevent.management.data.ActiveInfoMapper;
 import com.largeevent.management.data.ActiveUserParser;
 import com.largeevent.management.data.AppPreferences;
 import com.largeevent.management.data.InitializationRepository;
+import com.largeevent.management.network.dto.ActiveInfoDTO;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.EventInfo;
 import com.largeevent.management.network.CustomHttpLogger;
 import com.largeevent.management.network.NetworkManager;
 import com.largeevent.management.network.dto.ApiResponse;
-import com.largeevent.management.network.dto.EquipmentRegisterDTO;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -68,6 +69,7 @@ public class SettingsFragment extends Fragment {
     private Set<String> pendingSelectedSessions = new HashSet<>();
     private Set<String> pendingSelectedVenues = new HashSet<>();
     private Set<String> pendingSelectedAreas = new HashSet<>();
+    private Set<String> pendingSelectedCertZones = new HashSet<>();
     private String pendingSelectedLocationId = null;
     private String pendingSelectedZoneId = null;
     
@@ -75,7 +77,6 @@ public class SettingsFragment extends Fragment {
     private String currentActiveIdForSave = null;
     
     // 防止重复点击标志
-    private boolean isSaving = false;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -116,6 +117,7 @@ public class SettingsFragment extends Fragment {
         pendingSelectedSessions = new HashSet<>(AppPreferences.getSelectedSessions(requireContext(), currentActiveId));
         pendingSelectedVenues = new HashSet<>(AppPreferences.getSelectedVenuePermissions(requireContext(), currentActiveId));
         pendingSelectedAreas = new HashSet<>(AppPreferences.getSelectedAreaPermissions(requireContext(), currentActiveId));
+        pendingSelectedCertZones = new HashSet<>(AppPreferences.getSelectedCertZonePermissions(requireContext(), currentActiveId));
         pendingSelectedLocationId = AppPreferences.getSelectedLocationId(requireContext(), currentActiveId);
         pendingSelectedZoneId = AppPreferences.getSelectedZoneId(requireContext(), currentActiveId);
 
@@ -215,12 +217,14 @@ public class SettingsFragment extends Fragment {
             pendingSelectedSessions = new HashSet<>();
             pendingSelectedVenues = new HashSet<>();
             pendingSelectedAreas = new HashSet<>();
+            pendingSelectedCertZones = new HashSet<>();
             pendingSelectedLocationId = null;
             pendingSelectedZoneId = null;
         } else {
             pendingSelectedSessions = new HashSet<>(AppPreferences.getSelectedSessions(requireContext(), selectedActiveId));
             pendingSelectedVenues = new HashSet<>(AppPreferences.getSelectedVenuePermissions(requireContext(), selectedActiveId));
             pendingSelectedAreas = new HashSet<>(AppPreferences.getSelectedAreaPermissions(requireContext(), selectedActiveId));
+            pendingSelectedCertZones = new HashSet<>(AppPreferences.getSelectedCertZonePermissions(requireContext(), selectedActiveId));
             pendingSelectedLocationId = AppPreferences.getSelectedLocationId(requireContext(), selectedActiveId);
             pendingSelectedZoneId = AppPreferences.getSelectedZoneId(requireContext(), selectedActiveId);
         }
@@ -273,12 +277,6 @@ public class SettingsFragment extends Fragment {
     }
 
     private void saveSettings() {
-        // 防止重复点击
-        if (isSaving) {
-            Toast.makeText(requireContext(), "正在保存中，请稍候", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        
         String raw = etServer.getText().toString().trim();
         if (TextUtils.isEmpty(raw)) {
             Toast.makeText(requireContext(), "服务器地址不能为空", Toast.LENGTH_SHORT).show();
@@ -307,6 +305,7 @@ public class SettingsFragment extends Fragment {
         AppPreferences.setSelectedSessions(requireContext(), activeIdForSave, pendingSelectedSessions);
         AppPreferences.setSelectedVenuePermissions(requireContext(), activeIdForSave, pendingSelectedVenues);
         AppPreferences.setSelectedAreaPermissions(requireContext(), activeIdForSave, pendingSelectedAreas);
+        AppPreferences.setSelectedCertZonePermissions(requireContext(), activeIdForSave, pendingSelectedCertZones);
         
         // 保存位置和分区ID
         if (!TextUtils.isEmpty(pendingSelectedLocationId)) {
@@ -315,131 +314,25 @@ public class SettingsFragment extends Fragment {
         if (!TextUtils.isEmpty(pendingSelectedZoneId)) {
             AppPreferences.setSelectedZoneId(requireContext(), activeIdForSave, pendingSelectedZoneId);
         }
+        if (!TextUtils.isEmpty(pendingSelectedLocationId) && !TextUtils.isEmpty(pendingSelectedZoneId)) {
+            AppPreferences.setDeviceAuthSynced(requireContext(), activeIdForSave,
+                    pendingSelectedLocationId, pendingSelectedZoneId);
+        }
+        AppPreferences.setDevicePermissionConfigured(requireContext(), activeIdForSave,
+                !pendingSelectedVenues.isEmpty()
+                        || !pendingSelectedAreas.isEmpty()
+                        || !pendingSelectedCertZones.isEmpty());
 
         // 通知HomeFragment更新自动初始化的服务器地址
         notifyHomeFragmentServerUrlChanged(normalized);
 
-        // 如果选择了位置，调用设备注册接口
-        if (!TextUtils.isEmpty(pendingSelectedLocationId)) {
-            isSaving = true;
-            Toast.makeText(requireContext(), "正在注册设备...", Toast.LENGTH_SHORT).show();
-            registerEquipmentAndRefreshBasicInfo(pendingSelectedLocationId);
-        } else if (urlChanged) {
+        // 位置/分区/权限已在活动设置页处理；此处仅持久化配置
+        if (urlChanged) {
             Toast.makeText(requireContext(), "服务器地址已变更，正在刷新基础信息", Toast.LENGTH_SHORT).show();
             fetchBasicInfo(normalized);
         } else {
             Toast.makeText(requireContext(), "设置已保存", Toast.LENGTH_SHORT).show();
         }
-    }
-
-    /**
-     * 设备注册并刷新 BasicInfo
-     */
-    private void registerEquipmentAndRefreshBasicInfo(String locationId) {
-        if (TextUtils.isEmpty(currentActiveIdForSave)) {
-            currentActiveIdForSave = AppPreferences.getLastActiveId(requireContext());
-        }
-        if (TextUtils.isEmpty(currentActiveIdForSave)) {
-            Toast.makeText(requireContext(), "活动ID为空，无法注册设备", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
-        
-        EquipmentRegisterDTO eqpRegisterDTO = new EquipmentRegisterDTO();
-        
-        eqpRegisterDTO.accountNumber = "";
-        eqpRegisterDTO.activityId = currentActiveIdForSave;
-        eqpRegisterDTO.carNumber = "";
-        eqpRegisterDTO.createTime = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(new java.util.Date());
-        eqpRegisterDTO.dataState = 1;
-        eqpRegisterDTO.description = "";
-        eqpRegisterDTO.eqpCode = AppPreferences.getDeviceCode(requireContext());
-        eqpRegisterDTO.eqpID = AppPreferences.getDeviceCode(requireContext());
-        eqpRegisterDTO.eqpIP = getDeviceIpAddress();
-        eqpRegisterDTO.eqpModel = android.os.Build.MODEL;
-        eqpRegisterDTO.eqpName = "手持设备1";
-        eqpRegisterDTO.eqpState = 0;
-        eqpRegisterDTO.eqpType = "手持式查验设备";
-        eqpRegisterDTO.locationID = locationId;
-        eqpRegisterDTO.zoneLocationID = pendingSelectedZoneId;
-        
-        retrofit2.Call<ResponseBody> call = apiService.registerEquipment(eqpRegisterDTO);
-        call.enqueue(new retrofit2.Callback<ResponseBody>() {
-            @Override
-            public void onResponse(@NonNull retrofit2.Call<ResponseBody> call, @NonNull retrofit2.Response<ResponseBody> response) {
-                if (response.isSuccessful()) {
-                    android.util.Log.i("SettingsFragment", "registerEquipment: success");
-                    // 设备注册成功后，重新获取 BasicInfo
-                    refreshBasicInfo();
-                } else {
-                    android.util.Log.w("SettingsFragment", "registerEquipment: failed, code=" + response.code());
-                    requireActivity().runOnUiThread(() -> {
-                        Toast.makeText(requireContext(), "设备注册失败", Toast.LENGTH_SHORT).show();
-                    });
-                    // 重置保存标志
-                    isSaving = false;
-                }
-            }
-
-            @Override
-            public void onFailure(@NonNull retrofit2.Call<ResponseBody> call, @NonNull Throwable t) {
-                android.util.Log.e("SettingsFragment", "registerEquipment: onFailure", t);
-                requireActivity().runOnUiThread(() -> {
-                    Toast.makeText(requireContext(), "设备注册失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
-                });
-                // 重置保存标志
-                isSaving = false;
-            }
-        });
-    }
-
-    /**
-     * 重新获取 BasicInfo
-     */
-    private void refreshBasicInfo() {
-        String serverUrl = AppPreferences.getServerUrl(requireContext());
-        if (TextUtils.isEmpty(serverUrl)) {
-            return;
-        }
-
-        String activityId = AppPreferences.getLastActiveId(requireContext());
-        if (TextUtils.isEmpty(activityId)) {
-            activityId = currentActiveIdForSave;
-        }
-        if (TextUtils.isEmpty(activityId)) {
-            return;
-        }
-
-        com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
-        retrofit2.Call<ResponseBody> call = apiService.getBasicInfo(activityId);
-        call.enqueue(new retrofit2.Callback<ResponseBody>() {
-            @Override
-            public void onResponse(@NonNull retrofit2.Call<ResponseBody> call, @NonNull retrofit2.Response<ResponseBody> response) {
-                if (response.isSuccessful()) {
-                    try {
-                        String json = response.body().string();
-                        repository.saveBaseInfo(serverUrl, json);
-                        requireActivity().runOnUiThread(() -> {
-                            Toast.makeText(requireContext(), "设置已保存，设备注册成功", Toast.LENGTH_SHORT).show();
-                        });
-                    } catch (Exception e) {
-                        android.util.Log.e("SettingsFragment", "refreshBasicInfo: parse error", e);
-                    }
-                } else {
-                    android.util.Log.w("SettingsFragment", "refreshBasicInfo: failed");
-                }
-                // 重置保存标志
-                isSaving = false;
-            }
-
-            @Override
-            public void onFailure(@NonNull retrofit2.Call<ResponseBody> call, @NonNull Throwable t) {
-                android.util.Log.e("SettingsFragment", "refreshBasicInfo: onFailure", t);
-                // 重置保存标志
-                isSaving = false;
-            }
-        });
     }
 
     // 添加通知HomeFragment服务器地址变更的方法
@@ -456,12 +349,12 @@ public class SettingsFragment extends Fragment {
     private void fetchBasicInfo(String baseUrl) {
         // 第一步：先获取活动列表
         com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
-        retrofit2.Call<ApiResponse<List<BasicInfo.ActiveModel>>> call = apiService.getActiveInfo();
+        retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call = apiService.getActiveInfo();
         
-        call.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<BasicInfo.ActiveModel>>>() {
+        call.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<ActiveInfoDTO>>>() {
             @Override
-            public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<BasicInfo.ActiveModel>>> call, 
-                                   @NonNull retrofit2.Response<ApiResponse<java.util.List<BasicInfo.ActiveModel>>> response) {
+            public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call, 
+                                   @NonNull retrofit2.Response<ApiResponse<java.util.List<ActiveInfoDTO>>> response) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     if (!response.isSuccessful()) {
@@ -469,14 +362,14 @@ public class SettingsFragment extends Fragment {
                         return;
                     }
                     
-                    ApiResponse<java.util.List<BasicInfo.ActiveModel>> apiResponse = response.body();
+                    ApiResponse<java.util.List<ActiveInfoDTO>> apiResponse = response.body();
                     if (apiResponse == null || apiResponse.getCode() != 200) {
                         Toast.makeText(requireContext(), "活动列表获取失败：" + 
                                 (apiResponse != null ? apiResponse.getMessage() : "接口返回异常"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     
-                    java.util.List<BasicInfo.ActiveModel> activeList = apiResponse.getData();
+                    java.util.List<ActiveInfoDTO> activeList = apiResponse.getData();
                     if (activeList == null || activeList.isEmpty()) {
                         Toast.makeText(requireContext(), "活动列表为空", Toast.LENGTH_SHORT).show();
                         return;
@@ -484,20 +377,14 @@ public class SettingsFragment extends Fragment {
                     
                     // 保存活动列表
                     try {
-                        org.json.JSONArray jsonArray = new org.json.JSONArray();
-                        com.google.gson.Gson gson = new com.google.gson.Gson();
-                        for (BasicInfo.ActiveModel model : activeList) {
-                            String json = gson.toJson(model);
-                            jsonArray.put(new org.json.JSONObject(json));
-                        }
-                        repository.saveActiveList(baseUrl, jsonArray.toString());
+                        repository.saveActiveList(baseUrl, ActiveInfoMapper.toJsonArrayString(activeList));
                     } catch (Exception ex) {
                         Toast.makeText(requireContext(), "活动列表保存失败：" + ex.getMessage(), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     
                     // 获取第一个活动的 eventCode
-                    BasicInfo.ActiveModel firstActive = activeList.get(0);
+                    BasicInfo.ActiveModel firstActive = ActiveInfoMapper.toActiveModel(activeList.get(0));
                     if (firstActive != null) {
                         String eventCode = firstActive.id;  // 使用活动ID作为eventCode
                         if (!TextUtils.isEmpty(eventCode)) {
@@ -513,7 +400,7 @@ public class SettingsFragment extends Fragment {
             }
 
             @Override
-            public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<BasicInfo.ActiveModel>>> call, 
+            public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call, 
                                   @NonNull Throwable t) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() ->
@@ -620,12 +507,12 @@ public class SettingsFragment extends Fragment {
         btnRefreshActivities.setEnabled(false);
         
         com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
-        retrofit2.Call<ApiResponse<java.util.List<BasicInfo.ActiveModel>>> call = apiService.getActiveInfo();
+        retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call = apiService.getActiveInfo();
         
-        call.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<BasicInfo.ActiveModel>>>() {
+        call.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<ActiveInfoDTO>>>() {
             @Override
-            public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<BasicInfo.ActiveModel>>> call,
-                                   @NonNull retrofit2.Response<ApiResponse<java.util.List<BasicInfo.ActiveModel>>> response) {
+            public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call,
+                                   @NonNull retrofit2.Response<ApiResponse<java.util.List<ActiveInfoDTO>>> response) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     btnRefreshActivities.setEnabled(true);
@@ -635,14 +522,14 @@ public class SettingsFragment extends Fragment {
                         return;
                     }
                     
-                    ApiResponse<java.util.List<BasicInfo.ActiveModel>> apiResponse = response.body();
+                    ApiResponse<java.util.List<ActiveInfoDTO>> apiResponse = response.body();
                     if (apiResponse == null || apiResponse.getCode() != 200) {
                         Toast.makeText(requireContext(), "活动列表刷新失败：" + 
                                 (apiResponse != null ? apiResponse.getMessage() : "接口返回异常"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     
-                    java.util.List<BasicInfo.ActiveModel> activeList = apiResponse.getData();
+                    java.util.List<ActiveInfoDTO> activeList = apiResponse.getData();
                     if (activeList == null || activeList.isEmpty()) {
                         Toast.makeText(requireContext(), "活动列表为空", Toast.LENGTH_SHORT).show();
                         return;
@@ -650,14 +537,8 @@ public class SettingsFragment extends Fragment {
                     
                     // 保存活动列表
                     try {
-                        org.json.JSONArray jsonArray = new org.json.JSONArray();
-                        com.google.gson.Gson gson = new com.google.gson.Gson();
-                        for (BasicInfo.ActiveModel model : activeList) {
-                            String json = gson.toJson(model);
-                            jsonArray.put(new org.json.JSONObject(json));
-                        }
-                        repository.saveActiveList(baseUrl, jsonArray.toString());
-                        // 重新加载活动列表并刷新Spinner
+                        repository.saveActiveList(baseUrl, ActiveInfoMapper.toJsonArrayString(activeList));
+                        activeModelList = new ArrayList<>(ActiveInfoMapper.toActiveModels(activeList));
                         loadActiveModelList();
                         Toast.makeText(requireContext(), "活动列表已刷新", Toast.LENGTH_SHORT).show();
                     } catch (Exception ex) {
@@ -667,7 +548,7 @@ public class SettingsFragment extends Fragment {
             }
 
             @Override
-            public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<BasicInfo.ActiveModel>>> call,
+            public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call,
                                   @NonNull Throwable t) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
@@ -686,6 +567,7 @@ public class SettingsFragment extends Fragment {
             ArrayList<String> sessions = data.getStringArrayListExtra("selected_sessions");
             ArrayList<String> venues = data.getStringArrayListExtra("selected_venues");
             ArrayList<String> areas = data.getStringArrayListExtra("selected_areas");
+            ArrayList<String> certZones = data.getStringArrayListExtra("selected_cert_zones");
             String locationId = data.getStringExtra("selected_location_id");
             String zoneId = data.getStringExtra("selected_zone_id");
 
@@ -693,38 +575,27 @@ public class SettingsFragment extends Fragment {
             pendingSelectedSessions = sessions != null ? new HashSet<>(sessions) : new HashSet<>();
             pendingSelectedVenues = venues != null ? new HashSet<>(venues) : new HashSet<>();
             pendingSelectedAreas = areas != null ? new HashSet<>(areas) : new HashSet<>();
+            pendingSelectedCertZones = certZones != null ? new HashSet<>(certZones) : new HashSet<>();
             pendingSelectedLocationId = locationId;
             pendingSelectedZoneId = zoneId;
-        }
-    }
 
-    /**
-     * 获取设备IP地址
-     */
-    private String getDeviceIpAddress() {
-        try {
-            java.util.Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()) {
-                java.net.NetworkInterface iface = interfaces.nextElement();
-                // 跳过回环接口和禁用的接口
-                if (iface.isLoopback() || !iface.isUp()) {
-                    continue;
+            String activeId = AppPreferences.getLastActiveId(requireContext());
+            if (!TextUtils.isEmpty(activeId)) {
+                AppPreferences.setActivationCheckEnabled(requireContext(), activeId,
+                        data.getBooleanExtra("activation_check_enabled", false));
+                AppPreferences.setSelectedSubUnitName(requireContext(), activeId,
+                        data.getStringExtra("selected_sub_unit"));
+                String eqpType = data.getStringExtra("eqp_type");
+                if (!TextUtils.isEmpty(eqpType)) {
+                    AppPreferences.setEqpType(requireContext(), activeId, eqpType);
                 }
-                
-                java.util.Enumeration<java.net.InetAddress> addresses = iface.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    java.net.InetAddress addr = addresses.nextElement();
-                    // 只返回IPv4地址
-                    if (addr instanceof java.net.Inet4Address) {
-                        return addr.getHostAddress();
-                    }
-                }
+                AppPreferences.setDevicePermissionConfigured(requireContext(), activeId,
+                        data.getBooleanExtra("device_perm_configured", false)
+                                || !pendingSelectedVenues.isEmpty()
+                                || !pendingSelectedAreas.isEmpty()
+                                || !pendingSelectedCertZones.isEmpty());
             }
-        } catch (java.net.SocketException e) {
-            android.util.Log.e("SettingsFragment", "getDeviceIpAddress failed", e);
         }
-        // 如果获取失败，返回默认值
-        return "192.168.1.100";
     }
 
     @Override

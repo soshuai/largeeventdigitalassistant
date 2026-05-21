@@ -134,6 +134,16 @@
                                 android:textColor="#2B2F43" />
 
                             <TextView
+                                android:id="@+id/tv_id_number"
+                                style="@style/TextAppearance.AppCompat.Body2"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="身份证号码：--"
+                                tools:text="身份证号码：142727198408143513"
+                                android:textColor="#2B2F43" />
+
+                            <TextView
                                 android:id="@+id/tv_number"
                                 style="@style/TextAppearance.AppCompat.Body2"
                                 android:layout_width="wrap_content"
@@ -165,21 +175,30 @@
                     </LinearLayout>
                     
                     <TextView
-                        tools:text = "王力宏"
                         android:id="@+id/tv_venue_permission"
                         style="@style/TextAppearance.AppCompat.Body2"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="8dp"
+                        tools:text="场馆权限：首钢冰球体育馆"
                         android:textColor="#2B2F43" />
 
                     <TextView
-                        tools:text = "王力宏"
+                        android:id="@+id/tv_partition_permission"
+                        style="@style/TextAppearance.AppCompat.Body2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        tools:text="分区权限：红、白"
+                        android:textColor="#2B2F43" />
+
+                    <TextView
                         android:id="@+id/tv_certificate_permission"
                         style="@style/TextAppearance.AppCompat.Body2"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
+                        tools:text="区域权限：Z01、看台区"
                         android:textColor="#2B2F43" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
