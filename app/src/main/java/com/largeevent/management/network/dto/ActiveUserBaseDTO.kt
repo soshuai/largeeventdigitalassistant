@@ -181,13 +181,25 @@ class ActiveUserBaseDTO { // Getters
     @JvmField
     var ctidErrorMsg: String? = null
 
-    /** 有效期开始时间  */
+    /** 有效期开始时间（旧字段，兼容）  */
     @JvmField
     var validBegin: String? = null
 
-    /** 有效期结束时间  */
+    /** 有效期结束时间（旧字段，兼容）  */
     @JvmField
     var validEnd: String? = null
+
+    /** 证件生效时间（getActiveUser 标准字段）  */
+    @JvmField
+    var cardEffectiveDate: String? = null
+
+    /** 证件失效时间（getActiveUser 标准字段）  */
+    @JvmField
+    var cardExpirationDate: String? = null
+
+    /** 证件发布状态：2-已发布，3-已取消发布  */
+    @JvmField
+    var cardPublishFlag: Int = 0
 
     /** 是否删除（0-正常，1-删除）  */
     @JvmField

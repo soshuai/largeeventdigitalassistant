@@ -1,14 +1,11 @@
 package com.largeevent.management.network.dto
 
 /**
- * selectPersonCheckRecord 响应 records 单条（字段名、类型与后端一致）
+ * POST /receiveCheckPerson 请求体（字段名、类型与后端一致）
  */
-class PersonCardCheckModel {
+class ReceiveCheckPersonDTO {
     @JvmField
     var entryId: String = ""
-
-    @JvmField
-    var moduleType: Int = 0
 
     @JvmField
     var verifyStatus: Int = 0
@@ -16,6 +13,7 @@ class PersonCardCheckModel {
     @JvmField
     var verifyTime: String = ""
 
+    /** 0-进入，1-离开 */
     @JvmField
     var direction: Int = 0
 
@@ -47,13 +45,16 @@ class PersonCardCheckModel {
     var cardId: String = ""
 
     @JvmField
-    var isDetectedStatus: String = ""
+    var createTime: String = ""
 
     @JvmField
-    var closeContactStatus: String = ""
+    var isDetectedStatus: String = "2"
 
     @JvmField
-    var positiveStatus: String = ""
+    var closeContactStatus: String = "2"
+
+    @JvmField
+    var positiveStatus: String = "2"
 
     @JvmField
     var activityId: String = ""

@@ -1,72 +1,47 @@
 package com.largeevent.management.network.dto
 
-import com.google.gson.annotations.*
+import com.google.gson.annotations.SerializedName
 
 /**
- * 人脸比对响应 DTO
+ * 人脸比对响应 DTO（百度 API 原始返回格式）
  */
 class FaceMatchResponseDTO {
     @JvmField
-    var code: Int = 0
+    @SerializedName("error_code")
+    var errorCode: Int = 0
 
     @JvmField
-    var msg: String? = null
+    @SerializedName("error_msg")
+    var errorMsg: String? = null
 
     @JvmField
-    var message: String? = null
-
-    @JvmField
-    var data: Data? = null
-
-    class Data {
-        @JvmField
-        var result: Result? = null
-
-        @JvmField
-        var logId: Long = 0
-
-        @JvmField
-        var errorMsg: String? = null
-
-        @JvmField
-        var cached: Int = 0
-
-        @JvmField
-        var errorCode: Int = 0
-
-        @JvmField
-        var timestamp: Long = 0
-    }
+    var result: Result? = null
 
     class Result {
         @JvmField
         var score: Double = 0.0
 
         @JvmField
+        @SerializedName("face_list")
         var faceList: MutableList<FaceInfo?>? = null
     }
 
     class FaceInfo {
         @JvmField
+        @SerializedName("face_token")
         var faceToken: String? = null
     }
 
-    // 便捷方法，判断接口调用是否成功
+    /** 百度 error_code == 0 表示成功 */
     fun isSuccess(): Boolean {
-        return code == 200
+        return errorCode == 0
     }
 
-    // 便捷方法，获取score分数
     fun getScore(): Double {
-        return data?.result?.score ?: 0.0
+        return result?.score ?: 0.0
     }
 
-    // 便捷方法，获取错误信息
     fun getErrorMessage(): String? {
-        return if (code != 200) {
-            msg ?: message
-        } else {
-            data?.errorMsg
-        }
+        return errorMsg
     }
 }

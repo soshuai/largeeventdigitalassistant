@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.MaterialToolbar;
+import com.largeevent.management.data.AppPreferences;
 import com.largeevent.management.network.ApiService;
 import com.largeevent.management.network.NetworkManager;
 import com.largeevent.management.network.dto.*;
@@ -41,6 +42,7 @@ public class RecordActivity extends AppCompatActivity {
     private static final String TAG = "VerificationRecord";
     private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault());
     private final SimpleDateFormat apiSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+    private final SimpleDateFormat apiDateSdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
 
     private Spinner spinnerRecordType;
     private Spinner spinnerResultType;
@@ -55,7 +57,11 @@ public class RecordActivity extends AppCompatActivity {
     
     // 筛选条件
     private String selectedRecordType = "人证核验"; // null表示全部, "人证核验", "车证核验"
-    private Integer selectedCheckStatus = null; // null表示全部, 0=失败, 1=成功
+    /** null=全部；8=通过 */
+    private Integer selectedVerifyStatus = null;
+    private boolean selectedFilterFailOnly = false;
+    /** 车证筛选：null=全部，0=失败，1=成功 */
+    private Integer selectedCarCheckStatus = null;
     private int selectedDateRangePos = 0; // 0=全部, 1=今天, 2=近7天, 3=近30天
     
     // 分页参数
@@ -132,7 +138,9 @@ public class RecordActivity extends AppCompatActivity {
 
         // 重置按钮
         btnReset.setOnClickListener(v -> {
-            selectedCheckStatus = null;
+            selectedVerifyStatus = null;
+            selectedFilterFailOnly = false;
+            selectedCarCheckStatus = null;
             selectedRecordType = showCar?"车证核验":"人证核验";
             selectedDateRangePos = 0;
             spinnerRecordType.setSelection(showCar?1:0);
@@ -173,7 +181,9 @@ public class RecordActivity extends AppCompatActivity {
         selectedRecordType = recordTypePos == 0 ? "人证核验" : "车证核验";
 
         int resultTypePos = spinnerResultType.getSelectedItemPosition();
-        selectedCheckStatus = resultTypePos == 0 ? null : (resultTypePos == 1 ? 1 : 0);
+        selectedVerifyStatus = resultTypePos == 1 ? 8 : null;
+        selectedFilterFailOnly = resultTypePos == 2;
+        selectedCarCheckStatus = resultTypePos == 0 ? null : (resultTypePos == 1 ? 1 : 0);
 
         selectedDateRangePos = spinnerDateRange.getSelectedItemPosition();
 
@@ -222,12 +232,15 @@ public class RecordActivity extends AppCompatActivity {
         isLoadingPerson = true;
         
         PersonCardCheckPageDTO pageDTO = new PersonCardCheckPageDTO();
-        pageDTO.current = currentPersonPage;
-        pageDTO.size = 10L;
-        pageDTO.checkStatus = selectedCheckStatus;
-        
-        // 根据日期范围设置 beginTime 和 endTime
-        String[] dateRange = calculateDateRange(selectedDateRangePos);
+        pageDTO.current = (int) currentPersonPage;
+        pageDTO.size = 10;
+        pageDTO.verifyStatus = selectedVerifyStatus;
+        pageDTO.activityId = AppPreferences.getLastActiveId(this);
+        if (TextUtils.isEmpty(pageDTO.activityId)) {
+            pageDTO.activityId = null;
+        }
+
+        String[] dateRange = calculatePersonDateRange(selectedDateRangePos);
         pageDTO.beginTime = dateRange[0];
         pageDTO.endTime = dateRange[1];
         
@@ -247,19 +260,29 @@ public class RecordActivity extends AppCompatActivity {
                         // 保存总记录数
                         personTotalRecords = pageResult.total;
                         
-                        if (pageResult.records != null && !pageResult.records.isEmpty()) {
+                        List<PersonCardCheckModel> records = copyPersonRecords(pageResult.records);
+                        if (selectedFilterFailOnly) {
+                            List<PersonCardCheckModel> filtered = new ArrayList<>();
+                            for (PersonCardCheckModel item : records) {
+                                if (item.verifyStatus != 8) {
+                                    filtered.add(item);
+                                }
+                            }
+                            records = filtered;
+                        }
+                        if (!records.isEmpty()) {
+                            List<PersonCardCheckModel> finalRecords = records;
                             runOnUiThread(() -> {
-                                allRecords.addAll(pageResult.records);
+                                allRecords.addAll(finalRecords);
                                 adapter.notifyDataSetChanged();
                                 updateRecordCount();
                             });
                         } else {
-                            // 没有更多数据
                             hasMorePersonRecords = false;
                         }
-                        
-                        // 检查是否还有更多数据
-                        if (pageResult.records == null || pageResult.records.size() < pageDTO.size) {
+
+                        int rawSize = pageResult.records != null ? pageResult.records.size() : 0;
+                        if (rawSize < pageDTO.size) {
                             hasMorePersonRecords = false;
                         }
                         
@@ -283,7 +306,7 @@ public class RecordActivity extends AppCompatActivity {
         CarCertificateCheckPageDTO pageDTO = new CarCertificateCheckPageDTO();
         pageDTO.current = currentCarPage;
         pageDTO.size = 10L;
-        pageDTO.checkStatus = selectedCheckStatus;
+        pageDTO.checkStatus = selectedCarCheckStatus;
         
         // 根据日期范围设置 beginTime 和 endTime
         String[] dateRange = calculateDateRange(selectedDateRangePos);
@@ -335,6 +358,20 @@ public class RecordActivity extends AppCompatActivity {
         });
     }
 
+    private static List<PersonCardCheckModel> copyPersonRecords(
+            @Nullable List<? extends PersonCardCheckModel> source) {
+        List<PersonCardCheckModel> list = new ArrayList<>();
+        if (source == null) {
+            return list;
+        }
+        for (PersonCardCheckModel item : source) {
+            if (item != null) {
+                list.add(item);
+            }
+        }
+        return list;
+    }
+
     private void updateRecordCount() {
         long totalRecords = 0L;
         if ("人证核验".equals(selectedRecordType)) {
@@ -345,12 +382,22 @@ public class RecordActivity extends AppCompatActivity {
         tvRecordCount.setText("共" + totalRecords + "条记录");
     }
 
+    /** 人证查询日期：yyyy-MM-dd */
+    private String[] calculatePersonDateRange(int dateRangePos) {
+        String[] result = calculateDateRange(dateRangePos, apiDateSdf);
+        return result;
+    }
+
     /**
      * 根据日期范围位置计算 beginTime 和 endTime
      * @param dateRangePos 0=全部, 1=今天, 2=近7天, 3=近30天
      * @return String[]{beginTime, endTime}, 全部时返回 {null, null}
      */
     private String[] calculateDateRange(int dateRangePos) {
+        return calculateDateRange(dateRangePos, apiSdf);
+    }
+
+    private String[] calculateDateRange(int dateRangePos, SimpleDateFormat format) {
         String[] result = new String[2];
         
         if (dateRangePos == 0) {
@@ -366,28 +413,22 @@ public class RecordActivity extends AppCompatActivity {
                 calendar.set(Calendar.HOUR_OF_DAY, 0);
                 calendar.set(Calendar.MINUTE, 0);
                 calendar.set(Calendar.SECOND, 0);
-                result[0] = apiSdf.format(calendar.getTime());
-                
-                calendar.set(Calendar.HOUR_OF_DAY, 23);
-                calendar.set(Calendar.MINUTE, 59);
-                calendar.set(Calendar.SECOND, 59);
-                result[1] = apiSdf.format(calendar.getTime());
+                result[0] = format.format(calendar.getTime());
+                result[1] = format.format(endDate);
             } else if (dateRangePos == 2) {
-                // 近7天：7天前 00:00:00 到现在
                 calendar.add(Calendar.DAY_OF_YEAR, -7);
                 calendar.set(Calendar.HOUR_OF_DAY, 0);
                 calendar.set(Calendar.MINUTE, 0);
                 calendar.set(Calendar.SECOND, 0);
-                result[0] = apiSdf.format(calendar.getTime());
-                result[1] = apiSdf.format(endDate);
+                result[0] = format.format(calendar.getTime());
+                result[1] = format.format(endDate);
             } else if (dateRangePos == 3) {
-                // 近30天：30天前 00:00:00 到现在
                 calendar.add(Calendar.DAY_OF_YEAR, -30);
                 calendar.set(Calendar.HOUR_OF_DAY, 0);
                 calendar.set(Calendar.MINUTE, 0);
                 calendar.set(Calendar.SECOND, 0);
-                result[0] = apiSdf.format(calendar.getTime());
-                result[1] = apiSdf.format(endDate);
+                result[0] = format.format(calendar.getTime());
+                result[1] = format.format(endDate);
             }
         }
         
@@ -444,47 +485,61 @@ public class RecordActivity extends AppCompatActivity {
             }
             
             void bindPersonRecord(PersonCardCheckModel record) {
-                // 时间
-                if (record.passTime != null) {
-                    tvRecordTime.setText(sdf.format(record.passTime));
+                if (!TextUtils.isEmpty(record.verifyTime)) {
+                    tvRecordTime.setText(record.verifyTime);
                 } else {
                     tvRecordTime.setText("--");
                 }
 
-                // 图片：优先使用personPhoto，如果没有则使用默认图标
-                if (!TextUtils.isEmpty(record.personPhoto)) {
+                String imageUrl = record.imageName;
+                if (!TextUtils.isEmpty(imageUrl)
+                        && !imageUrl.startsWith("http://")
+                        && !imageUrl.startsWith("https://")) {
+                    imageUrl = null;
+                }
+                if (!TextUtils.isEmpty(imageUrl)) {
                     Glide.with(ivRecordIcon.getContext())
-                            .load(record.personPhoto)
+                            .load(imageUrl)
                             .placeholder(R.drawable.ic_face_placeholder)
                             .error(R.drawable.ic_face_placeholder)
                             .into(ivRecordIcon);
                 } else {
                     ivRecordIcon.setImageResource(R.drawable.ic_face_placeholder);
                 }
-                
-                // 姓名
-                if (!TextUtils.isEmpty(record.personName)) {
-                    tvRecordName.setText("姓名: " + record.personName);
+
+                if (!TextUtils.isEmpty(record.name)) {
+                    tvRecordName.setText("姓名: " + record.name);
                 } else {
                     tvRecordName.setText("姓名: --");
                 }
 
-                // 芯片号
-                tvRecordChip.setText("芯片号: " + (record.tagNo != null ? record.tagNo : "--"));
+                tvRecordChip.setText("证件号: " + (
+                        !TextUtils.isEmpty(record.cardNumber) ? record.cardNumber : "--"));
 
-                // 记录类型标签
                 tvRecordTypeTag.setText("人证核验");
-                tvRecordTypeTag.setBackgroundColor(0xFF4A90E2); // 蓝色
+                tvRecordTypeTag.setBackgroundColor(0xFF4A90E2);
 
-                // 核验结果
-                if (record.checkStatus != null && record.checkStatus == 1) {
+                if (record.verifyStatus == 8) {
                     ivResultIcon.setImageResource(R.drawable.ic_result_success);
                     tvResultText.setText("核验成功");
-                    tvResultText.setTextColor(0xFF52C41A); // 绿色
+                    tvResultText.setTextColor(0xFF52C41A);
                 } else {
                     ivResultIcon.setImageResource(R.drawable.ic_result_error);
-                    tvResultText.setText("核验失败");
-                    tvResultText.setTextColor(0xFFFF4D4F); // 红色
+                    tvResultText.setText(verifyStatusLabel(record.verifyStatus));
+                    tvResultText.setTextColor(0xFFFF4D4F);
+                }
+            }
+
+            private String verifyStatusLabel(int verifyStatus) {
+                switch (verifyStatus) {
+                    case 1: return "未识读出证件";
+                    case 2: return "无效证件";
+                    case 3: return "限制通行";
+                    case 4: return "证件已注销";
+                    case 5: return "证件未激活";
+                    case 6: return "无权通行";
+                    case 9: return "请检查证件";
+                    default: return "核验失败";
                 }
             }
             

@@ -23,7 +23,6 @@ import androidx.fragment.app.Fragment;
 import com.bumptech.glide.Glide;
 import com.largeevent.management.*;
 import com.largeevent.management.R;
-import com.google.gson.Gson;
 import com.largeevent.management.camera.CameraCallback;
 import com.largeevent.management.camera.CameraHelper;
 import com.largeevent.management.data.ActiveUserParser;
@@ -42,16 +41,14 @@ import com.largeevent.management.network.dto.ActiveUserBaseDTO;
 import com.largeevent.management.network.dto.ApiResponse;
 import com.largeevent.management.network.dto.FaceMatchParamDTO;
 import com.largeevent.management.network.dto.FaceMatchResponseDTO;
-import com.largeevent.management.network.dto.PersonCardCheckDTO;
+import com.largeevent.management.data.ReceiveCheckPersonBuilder;
+import com.largeevent.management.network.dto.ReceiveCheckPersonDTO;
 import com.largeevent.management.nfc.NfcCallback;
 import com.largeevent.management.widget.CommonConfig;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -222,7 +219,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     }
 
     private void startVerification() {
-        if (true) {
+        if (false) {
             //TODO 测试 E00401531D5F1031 、E00401531D5F73AE
             currentChipId = "E00401531D5F73AE";
         } else {
@@ -394,7 +391,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             return;
         }
 
-        // 转换拍摄的照片为 Base64
+        // 现场拍照转 Base64；证件头像按文档以 URL 传入
         String base64Image = convertImageToBase64(latestPhotoPath);
         if (TextUtils.isEmpty(base64Image)) {
             setVerifying(false);
@@ -402,44 +399,16 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             return;
         }
 
-        // 异步下载并转换证件照片为 Base64
-        new Thread(() -> {
-            try {
-                String photoBase64 = downloadImageAndConvertToBase64(photoUrl);
-
-                if (TextUtils.isEmpty(photoBase64)) {
-                    requireActivity().runOnUiThread(() -> {
-                        setVerifying(false);
-                        openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "无法比对", "证件照片下载失败", info), "证件照片下载失败");
-                    });
-                    return;
-                }
-
-                // 在主线程调用人脸比对接口
-                requireActivity().runOnUiThread(() -> {
-                    performFaceMatch(base64Image, photoBase64, info, userDTO);
-                });
-
-            } catch (Exception e) {
-                requireActivity().runOnUiThread(() -> {
-                    setVerifying(false);
-                    openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "无法比对", "证件照片处理失败：" + e.getMessage(), info), "证件照片处理失败");
-                    Log.e(TAG, "Download and convert photo failed", e);
-                });
-            }
-        }).start();
+        performFaceMatch(base64Image, photoUrl.trim(), info, userDTO);
     }
 
     /**
-     * 执行人脸比对
+     * 执行人脸比对（文档：第 1 张 BASE64 现场照，第 2 张 URL 证件头像）
      */
-    private void performFaceMatch(String base64Image1, String base64Image2, CertificateInfo info, ActiveUserBaseDTO userDTO) {
-        // 构建人脸比对参数（两张图都使用 Base64）
+    private void performFaceMatch(String livePhotoBase64, String certPhotoUrl, CertificateInfo info, ActiveUserBaseDTO userDTO) {
         List<FaceMatchParamDTO> faceMatchParams = new ArrayList<>();
-        // 第一张图：Base64 拍摄的照片
-        faceMatchParams.add(new FaceMatchParamDTO(base64Image1, "BASE64", "LIVE"));
-        // 第二张图：Base64 证件的头像（从 URL 下载转换而来）
-        faceMatchParams.add(new FaceMatchParamDTO(base64Image2, "BASE64", "LIVE"));
+        faceMatchParams.add(new FaceMatchParamDTO(livePhotoBase64, "BASE64", "LIVE"));
+        faceMatchParams.add(new FaceMatchParamDTO(certPhotoUrl, "URL", "LIVE"));
 
         // 调用人脸比对接口
         ApiService apiService = NetworkManager.getInstance().getApiService();
@@ -459,22 +428,14 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
 
                     FaceMatchResponseDTO faceMatchResponse = response.body();
 
-                    // 检查接口调用是否成功（code = 200）
+                    // 百度 error_code == 0 表示成功
                     if (!faceMatchResponse.isSuccess()) {
                         setVerifying(false);
                         openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "人脸比对失败", faceMatchResponse.getErrorMessage(), info), "人脸比对失败");
                         return;
                     }
 
-                    // 检查百度 API 返回的错误码
-                    if (faceMatchResponse.data != null && faceMatchResponse.data.errorCode != 0) {
-                        setVerifying(false);
-                        openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "人脸比对失败", faceMatchResponse.data.errorMsg, info), "人脸比对失败");
-                        return;
-                    }
-
-                    // 检查 score 分数
-                    FaceMatchResponseDTO.Result result = faceMatchResponse.data != null ? faceMatchResponse.data.result : null;
+                    FaceMatchResponseDTO.Result result = faceMatchResponse.result;
                     if (result == null) {
                         setVerifying(false);
                         openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "人脸比对失败", "", info), "人脸比对失败");
@@ -531,142 +492,29 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
      * 上传核验结果到后台
      */
     private void uploadVerificationResult(VerificationResult result) {
-        if (currentUserDTO == null) {
-            Log.w(TAG, "currentUserDTO is null, skip upload");
-            return;
-        }
-
         try {
-            // 构建上传数据
-            PersonCardCheckDTO checkData = new PersonCardCheckDTO();
-            checkData.idCard = currentUserDTO.idNumber;
-            checkData.activeCode = currentUserDTO.activeProfile;
-            checkData.activeId = currentUserDTO.activeId;
-            checkData.userId = currentUserDTO.userId;
-            checkData.personType = currentUserDTO.activeProfile;  // 人员类型
-            checkData.personName = currentUserDTO.chineseName;
-            checkData.sex = currentUserDTO.gender;
-            checkData.unitName = currentUserDTO.organization;
-            checkData.phone = currentUserDTO.phoneNumber;
-            checkData.personPhoto = currentUserDTO.photo;
-            checkData.subAppTypeCode = currentUserDTO.subAppTypeCode;
-            checkData.tagNo = currentUserDTO.tagNo1;
-            checkData.session = "";  // 场次（如果有的话从其他地方获取）
-            checkData.deviceName = android.os.Build.MODEL;  // 设备名称
-            checkData.passRuleCode = currentUserDTO.passRuleCode;
-
-            // 组装通行位置代码（场馆code + 区域code），来自设置页当前活动的权限选择
-            try {
-                String currentActiveId = AppPreferences.getLastActiveId(requireContext());
-                String locationId = AppPreferences.getSelectedLocationId(requireContext(), currentActiveId);
-                checkData.positionId = locationId;  // 位置（如果有的话从设置中获取）
-
-                Set<String> venueNames = AppPreferences.getSelectedVenuePermissions(requireContext(), currentActiveId);
-                Set<String> areaNames = AppPreferences.getSelectedAreaPermissions(requireContext(), currentActiveId);
-                Set<String> codeSet = new java.util.HashSet<>();
-
-                BasicInfo basicInfo2 = initializationRepository.getBasicInfo();
-                if (basicInfo2 != null) {
-                    // 场馆名称 -> venueCode
-                    java.util.List<BasicInfo.ActiveVenueModel> venues = basicInfo2.getActiveVenues();
-                    if (venues != null && venueNames != null) {
-                        for (String vn : venueNames) {
-                            if (TextUtils.isEmpty(vn))
-                                continue;
-                            for (BasicInfo.ActiveVenueModel v : venues) {
-                                if (v != null && vn.equals(v.venueName) && !TextUtils.isEmpty(v.venueCode)) {
-                                    codeSet.add(v.venueCode);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    // 区域名称 -> positionCode
-                    java.util.List<BasicInfo.PositionModel> positions2 = basicInfo2.getPositions();
-                    if (positions2 != null && areaNames != null) {
-                        for (String an : areaNames) {
-                            if (TextUtils.isEmpty(an))
-                                continue;
-                            for (BasicInfo.PositionModel p : positions2) {
-                                if (p != null && an.equals(p.name) && !TextUtils.isEmpty(p.positionCode)) {
-                                    codeSet.add(p.positionCode);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-                if (codeSet.isEmpty()) {
-                    checkData.passPositionCode = "";
-                } else {
-                    checkData.passPositionCode = TextUtils.join(",", codeSet);
-                }
-            } catch (Exception ignore) {
-                checkData.passPositionCode = "";
-            }
-            checkData.certNumber = currentUserDTO.registerNumber;
-
-            // 设置通行时间
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
-            checkData.passTime = sdf.format(new Date());
-
-            // 根据核验结果设置方向、错误信息和校验状态
-            if (result.type == VerificationResultType.PASS) {
-                checkData.direction = "进入";
-                checkData.errorMsg = result.title + ": " + result.description;  // 核验成功信息
-                checkData.checkStatus = 1;  // 校验成功传1
-            } else {
-                checkData.direction = "拒绝";  // 核验失败记录为拒绝
-                checkData.errorMsg = result.title + ": " + result.description;  // 核验失败原因
-                checkData.checkStatus = 0;  // 校验失败传0
-            }
-            // 设置验证状态码（VerifyStatus）和验证方向
-            checkData.verifyStatus = result.type.code;  // 使用状态码（1-未识读, 2-无效, 3-黑名单, 4-注销, 5-未激活, 6-无权, 8-通过, 9-人证不一, 10-未绑定）
-            checkData.verifyDirection = checkData.direction;  // 验证方向：进入/拒绝
-
-            // 如果有拍照,上传拍照的base64图片(无论成功还是失败都上传)
+            String photoBase64 = null;
             if (!TextUtils.isEmpty(latestPhotoPath)) {
                 try {
-                    String checkImgBase64 = convertImageToBase64(latestPhotoPath);
-                    if (!TextUtils.isEmpty(checkImgBase64)) {
-                        checkData.checkImg = checkImgBase64;
-                        Log.d(TAG, "添加拍照图片,Base64长度: " + checkImgBase64.length());
-                    }
+                    photoBase64 = convertImageToBase64(latestPhotoPath);
+                    Log.d(TAG, "核验上传照片 Base64 长度: "
+                            + (photoBase64 != null ? photoBase64.length() : 0));
                 } catch (Exception e) {
                     Log.w(TAG, "转换拍照图片为Base64失败: " + e.getMessage());
                 }
             }
 
-            // 获取活动名称和证件有效时间信息
-            try {
-                // 获取活动名称
-                BasicInfo basicInfo = initializationRepository.getBasicInfo();
-                if (basicInfo != null && !basicInfo.getActiveModels().isEmpty()) {
-                    checkData.activeName = basicInfo.getActiveModels().get(0).activeName;
-                }
+            BasicInfo basicInfo = initializationRepository.getBasicInfo();
+            ReceiveCheckPersonDTO body = ReceiveCheckPersonBuilder.build(
+                    requireContext(),
+                    result,
+                    currentUserDTO,
+                    result != null ? result.certificateInfo : null,
+                    basicInfo,
+                    photoBase64);
 
-                // 获取证件有效时间
-                checkData.startTime = currentUserDTO.validBegin;  // 证件有效期开始时间
-                checkData.endTime = currentUserDTO.validEnd;  // 证件有效期结束时间
-            } catch (Exception e) {
-                Log.w(TAG, "获取活动名称或证件有效时间失败: " + e.getMessage());
-            }
-
-            // 构建数组（接口要求数组格式）
-            List<PersonCardCheckDTO> dataList = new ArrayList<>();
-            dataList.add(checkData);
-
-            // 转换为JSON
-            Gson gson = new Gson();
-            String jsonData = gson.toJson(dataList);
-
-            // 将JSON字符串封装到Map中，作为data参数
-            Map<String, String> requestMap = new HashMap<>();
-            requestMap.put("data", jsonData);
-
-            // 调用上传接口
             ApiService apiService = NetworkManager.getInstance().getApiService();
-            Call<ResponseBody> call = apiService.receiveCheckPerson(requestMap);
+            Call<ResponseBody> call = apiService.receiveCheckPerson(body);
 
             call.enqueue(new Callback<ResponseBody>() {
                 @Override
@@ -753,40 +601,6 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             return Base64.encodeToString(imageBytes, Base64.NO_WRAP);
         } catch (Exception e) {
             Log.e(TAG, "Convert image to base64 failed", e);
-            return null;
-        }
-    }
-
-    /**
-     * 下载网络图片并转换为 Base64
-     */
-    private String downloadImageAndConvertToBase64(String imageUrl) {
-        try {
-            java.net.URL url = new java.net.URL(imageUrl);
-            java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
-            connection.setDoInput(true);
-            connection.setConnectTimeout(10000);
-            connection.setReadTimeout(10000);
-            connection.connect();
-
-            java.io.InputStream input = connection.getInputStream();
-            Bitmap bitmap = BitmapFactory.decodeStream(input);
-            input.close();
-            connection.disconnect();
-
-            if (bitmap == null) {
-                return null;
-            }
-
-            // 压缩图片
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
-            byte[] imageBytes = baos.toByteArray();
-
-            // 转换为 Base64
-            return Base64.encodeToString(imageBytes, Base64.NO_WRAP);
-        } catch (Exception e) {
-            Log.e(TAG, "Download and convert image to base64 failed", e);
             return null;
         }
     }

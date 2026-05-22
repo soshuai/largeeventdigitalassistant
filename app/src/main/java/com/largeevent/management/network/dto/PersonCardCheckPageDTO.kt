@@ -1,34 +1,39 @@
 package com.largeevent.management.network.dto
 
 /**
- * 人证核验记录分页查询 DTO
+ * POST /selectPersonCheckRecord 请求体（字段名、类型与后端一致）
  */
-class PersonCardCheckPageDTO : PageDto() {
-    /** 姓名（模糊查询） */
+class PersonCardCheckPageDTO {
     @JvmField
-    var personName: String? = null
+    var current: Int = 1
 
-    /** 身份证号（模糊查询） */
     @JvmField
-    var idCard: String? = null
+    var size: Int = 10
 
-    /** 芯片号（模糊查询） */
     @JvmField
-    var tagNo: String? = null
+    var name: String? = null
 
-    /** 证件编号（模糊查询） */
     @JvmField
-    var certNumber: String? = null
+    var cardNumber: String? = null
 
-    /** 验证情况：0-否，1-是 */
     @JvmField
-    var checkStatus: Int? = null
+    var cardId: String? = null
 
-    /** 开始时间 */
+    @JvmField
+    var activityId: String? = null
+
+    @JvmField
+    var verifyStatus: Int? = null
+
+    @JvmField
+    var equipmentName: String? = null
+
+    @JvmField
+    var locationName: String? = null
+
     @JvmField
     var beginTime: String? = null
 
-    /** 结束时间 */
     @JvmField
     var endTime: String? = null
 }

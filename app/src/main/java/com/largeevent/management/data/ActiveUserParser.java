@@ -2,6 +2,8 @@ package com.largeevent.management.data;
 
 import android.text.TextUtils;
 
+import androidx.annotation.Nullable;
+
 import com.largeevent.management.model.CertificateInfo;
 import com.largeevent.management.network.dto.ActiveUserBaseDTO;
 
@@ -86,8 +88,14 @@ public class ActiveUserParser {
         dto.cancelCard = json.optString("cancelCard", "0");
         dto.ctidStatus = json.optString("ctidStatus");
         dto.ctidErrorMsg = json.optString("ctidErrorMsg");
-        dto.validBegin = firstNonEmpty(json.optString("validBegin"), json.optString("validTime"));
-        dto.validEnd = json.optString("validEnd");
+        dto.cardEffectiveDate = json.optString("cardEffectiveDate");
+        dto.cardExpirationDate = json.optString("cardExpirationDate");
+        dto.cardPublishFlag = json.optInt("cardPublishFlag", 0);
+        dto.validBegin = firstNonEmpty(
+                dto.cardEffectiveDate,
+                json.optString("validBegin"),
+                json.optString("validTime"));
+        dto.validEnd = firstNonEmpty(dto.cardExpirationDate, json.optString("validEnd"));
         dto.deleted = json.optString("deleted", "0");
         dto.bindStatus = json.optString("bindStatus");
 
@@ -146,6 +154,40 @@ public class ActiveUserParser {
                 dto.photo = resolvedPhoto;
             }
         }
+        syncCardValidityFields(dto);
+    }
+
+    /** 有效期以 cardEffectiveDate / cardExpirationDate 为准，并回写兼容字段。 */
+    public static void syncCardValidityFields(ActiveUserBaseDTO dto) {
+        if (dto == null) {
+            return;
+        }
+        String effective = resolveCardEffectiveDate(dto);
+        String expiration = resolveCardExpirationDate(dto);
+        if (!TextUtils.isEmpty(effective)) {
+            dto.cardEffectiveDate = effective;
+            dto.validBegin = effective;
+        }
+        if (!TextUtils.isEmpty(expiration)) {
+            dto.cardExpirationDate = expiration;
+            dto.validEnd = expiration;
+        }
+    }
+
+    @Nullable
+    public static String resolveCardEffectiveDate(ActiveUserBaseDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        return firstNonEmpty(dto.cardEffectiveDate, dto.validBegin);
+    }
+
+    @Nullable
+    public static String resolveCardExpirationDate(ActiveUserBaseDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        return firstNonEmpty(dto.cardExpirationDate, dto.validEnd);
     }
 
     /**
@@ -175,8 +217,8 @@ public class ActiveUserParser {
                 .setDocumentType(idTypeDisplay)
                 .setChipId(chipId)
                 .setCardSerial(idNumber)
-                .setValidFrom(dto.validBegin)
-                .setValidTo(dto.validEnd)
+                .setValidFrom(resolveCardEffectiveDate(dto))
+                .setValidTo(resolveCardExpirationDate(dto))
                 .setNeedBinding("02".equals(dto.mainAppTypeCode))
                 .setBound("0".equals(dto.bindStatus))
                 .setRealNameRequired(dto.realStatus == 1)

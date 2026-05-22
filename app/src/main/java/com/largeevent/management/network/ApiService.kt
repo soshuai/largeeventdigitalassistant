@@ -58,12 +58,10 @@ interface ApiService {
     fun getActiveCarCert(@Query("activeId") activeId: String?, @Query("chipid") chipid: String?):
             Call<ApiResponse<MutableList<CarCertificateDTO?>?>?>?
     /**
-     * 上传人证核验结果
-     * @param requestMap 包含data字段的Map
-     * @return 响应体
+     * 上传人证核验结果（JSON 体字段与 receiveCheckPerson 文档一致）
      */
     @POST("androidNew/api/receiveCheckPerson")
-    fun receiveCheckPerson(@Body requestMap: Map<String, String>?): Call<ResponseBody?>?
+    fun receiveCheckPerson(@Body body: ReceiveCheckPersonDTO?): Call<ResponseBody?>?
 
     /**
      * 上传车证核验结果

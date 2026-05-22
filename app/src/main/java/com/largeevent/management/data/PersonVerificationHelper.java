@@ -32,6 +32,11 @@ public final class PersonVerificationHelper {
     /** 背审通过 */
     private static final String BS_PASS = "1";
 
+    /** 证件已发布 */
+    public static final int PUBLISH_PUBLISHED = 2;
+    /** 证件已取消发布 */
+    public static final int PUBLISH_CANCELLED = 3;
+
     private PersonVerificationHelper() {
     }
 
@@ -101,6 +106,10 @@ public final class PersonVerificationHelper {
             return StepResult.fail(Step.BACKGROUND_FAIL, "限制通行", "背审未通过，禁止通行");
         }
 
+        if (!isPublishOk(user)) {
+            return StepResult.fail(Step.EXPIRED, "无效证件", "证件已取消发布");
+        }
+
         if (!isValidityOk(user)) {
             return StepResult.fail(Step.EXPIRED, "无效证件",
                     MAIN_TP.equals(user.mainAppTypeCode) ? "日通行证不在有效期内" : "证件已失效");
@@ -166,11 +175,21 @@ public final class PersonVerificationHelper {
         return user.eventStatus == 5;
     }
 
+    /** 证件发布状态：仅 2-已发布 可通行；3-已取消发布 拒绝。 */
+    public static boolean isPublishOk(ActiveUserBaseDTO user) {
+        if (user == null) {
+            return false;
+        }
+        return user.cardPublishFlag == PUBLISH_PUBLISHED;
+    }
+
     public static boolean isValidityOk(ActiveUserBaseDTO user) {
         if (MAIN_TP.equals(user.mainAppTypeCode)) {
             return isTodayValid(user.effectiveDateOfDayPass);
         }
-        return isValidPeriod(user.validBegin, user.validEnd);
+        return isValidPeriod(
+                ActiveUserParser.resolveCardEffectiveDate(user),
+                ActiveUserParser.resolveCardExpirationDate(user));
     }
 
     public static boolean isDeviceConfigured(Context context, String activeId) {
@@ -306,7 +325,9 @@ public final class PersonVerificationHelper {
             }
             if (!TextUtils.isEmpty(chipId)) {
                 String c = chipId.trim();
-                if (c.equalsIgnoreCase(trim(dto.tagNo1)) || c.equalsIgnoreCase(trim(dto.tagNo2))) {
+                if (c.equalsIgnoreCase(trim(dto.chipid))
+                        || c.equalsIgnoreCase(trim(dto.tagNo1))
+                        || c.equalsIgnoreCase(trim(dto.tagNo2))) {
                     return dto;
                 }
             }
