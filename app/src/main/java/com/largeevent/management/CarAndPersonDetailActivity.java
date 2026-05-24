@@ -5,11 +5,13 @@ import static android.view.View.VISIBLE;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -19,6 +21,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.MaterialToolbar;
@@ -158,7 +161,7 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
         // 获取 carDTO
         carDTO = (CarCertificateDTO) getIntent().getSerializableExtra("car_dto");
         tvResultTitle.setText(result.title);
-        tvResultDesc.setText(result.description);
+        applyResultDescriptionStyle(result);
         if (result.type == VerificationResultType.PASS) {
             ivResultIcon.setImageResource(R.drawable.ic_result_success);
         } else {
@@ -269,7 +272,12 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
                     intent.putExtra(PersonCertBindActivity.EXTRA_CHIP_ID, currentResult.chipIdForBinding);
                     CertificateInfo certInfo = currentResult.certificateInfo;
                     if (certInfo != null) {
-                        intent.putExtra(PersonCertBindActivity.EXTRA_CERT_NUMBER, certInfo.cardSerial);
+                        intent.putExtra(PersonCertBindActivity.EXTRA_CERT_NUMBER,
+                                certInfo.identityDocumentNumber);
+                        intent.putExtra(PersonCertBindActivity.EXTRA_ACC_ID, certInfo.certId);
+                        intent.putExtra(PersonCertBindActivity.EXTRA_REGISTRATION_NUMBER, certInfo.number);
+                        intent.putExtra(PersonCertBindActivity.EXTRA_VALID_BEGIN, certInfo.validFrom);
+                        intent.putExtra(PersonCertBindActivity.EXTRA_VALID_END, certInfo.validTo);
                     }
                     startActivityForResult(intent, REQUEST_CODE_PERSON_BIND);
                 }
@@ -284,6 +292,27 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
             return "ALL";
         }
         return TextUtils.join("、", info.areaPermissions);
+    }
+
+    private void applyResultDescriptionStyle(VerificationResult result) {
+        if (result.isVehicle() && result.type == VerificationResultType.PASS) {
+            String plate = result.description;
+            if (result.certificateInfo != null
+                    && !TextUtils.isEmpty(result.certificateInfo.cardSerial)) {
+                plate = result.certificateInfo.cardSerial.trim();
+            }
+            tvResultDesc.setText(TextUtils.isEmpty(plate) ? "—" : plate);
+            tvResultDesc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
+            tvResultDesc.setTypeface(Typeface.DEFAULT_BOLD);
+            tvResultDesc.setTextColor(ContextCompat.getColor(this, R.color.primary_blue));
+            tvResultDesc.setLetterSpacing(0.05f);
+            return;
+        }
+        tvResultDesc.setText(result.description);
+        tvResultDesc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        tvResultDesc.setTypeface(Typeface.DEFAULT);
+        tvResultDesc.setTextColor(0xFF6B6F82);
+        tvResultDesc.setLetterSpacing(0f);
     }
 
     private String safe(String value) {

@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.largeevent.management.data.AppPreferences;
+import com.largeevent.management.data.InitializationRepository;
 import com.largeevent.management.data.VehicleBindingStore;
 import com.largeevent.management.model.CertificateInfo;
 import com.largeevent.management.model.VerificationResult;
@@ -22,7 +23,8 @@ import com.largeevent.management.network.NetworkManager;
 import com.largeevent.management.network.dto.CarCertificateDTO;
 import com.largeevent.management.network.dto.UpdateCardInfoDTO;
 
-import okhttp3.ResponseBody;
+import com.largeevent.management.network.dto.ApiResponse;
+
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -107,12 +109,15 @@ public class CarPlateBindActivity extends AppCompatActivity {
         }
 
         String activeId = AppPreferences.getLastActiveId(this);
+        InitializationRepository repository = new InitializationRepository(this);
+        String eventCode = AppPreferences.resolveEventCode(this, repository.getBasicInfo());
+        repository.close();
 
         // 构建更新请求
         UpdateCardInfoDTO updateCardInfoDTO = new UpdateCardInfoDTO();
         updateCardInfoDTO.accId = carDTO.id;
         updateCardInfoDTO.chipId = carDTO.tagNo1;
-        updateCardInfoDTO.eventCode = carDTO.number;
+        updateCardInfoDTO.eventCode = !TextUtils.isEmpty(eventCode) ? eventCode : carDTO.number;
         updateCardInfoDTO.identityDocumentNumber = plate;
         updateCardInfoDTO.unitCodeDesc = organization;
         updateCardInfoDTO.registrationNumber = carDTO.number;
@@ -120,26 +125,32 @@ public class CarPlateBindActivity extends AppCompatActivity {
 
         // 调用接口
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ResponseBody> call = apiService.updateCardInfo(updateCardInfoDTO);
+        Call<ApiResponse<Void>> call = apiService.updateCardInfo(updateCardInfoDTO);
 
-        call.enqueue(new Callback<ResponseBody>() {
+        call.enqueue(new Callback<ApiResponse<Void>>() {
             @Override
-            public void onResponse(@NonNull Call<ResponseBody> call, @NonNull Response<ResponseBody> response) {
+            public void onResponse(
+                    @NonNull Call<ApiResponse<Void>> call,
+                    @NonNull Response<ApiResponse<Void>> response) {
                 runOnUiThread(() -> {
-                    if (response.isSuccessful()) {
-                        // 绑定成功，也在本地保存一份
+                    if (response.isSuccessful()
+                            && response.body() != null
+                            && response.body().isSuccess()) {
                         VehicleBindingStore.bind(actualChipId, plate);
                         showSuccessAndFinish(plate);
                     } else {
+                        String msg = response.body() != null
+                                ? response.body().getMessage()
+                                : String.valueOf(response.code());
                         Toast.makeText(CarPlateBindActivity.this,
-                                "绑定失败：" + response.code(),
+                                "绑定失败：" + msg,
                                 Toast.LENGTH_SHORT).show();
                     }
                 });
             }
 
             @Override
-            public void onFailure(@NonNull Call<ResponseBody> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<ApiResponse<Void>> call, @NonNull Throwable t) {
                 runOnUiThread(() -> {
                     Toast.makeText(CarPlateBindActivity.this,
                             "网络错误：" + t.getMessage(),

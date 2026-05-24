@@ -220,7 +220,7 @@ public class ActiveUserParser {
                 .setValidFrom(resolveCardEffectiveDate(dto))
                 .setValidTo(resolveCardExpirationDate(dto))
                 .setNeedBinding("02".equals(dto.mainAppTypeCode))
-                .setBound("0".equals(dto.bindStatus))
+                .setBound("1".equals(dto.bindStatus))
                 .setRealNameRequired(dto.realStatus == 1)
                 .setPhotoUrl(dto.photo)
                 .setPassRuleCode(dto.passRuleCode)

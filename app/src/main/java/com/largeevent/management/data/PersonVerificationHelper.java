@@ -135,7 +135,7 @@ public final class PersonVerificationHelper {
             return StepResult.ok(Step.VP_PASS);
         }
 
-        if (MAIN_TP.equals(mainType)) {
+        if (isTpPassType(user)) {
             if (!isBound(user)) {
                 return StepResult.fail(Step.TP_UNBOUND, "证件未绑定", "请先完成实名绑定", true);
             }
@@ -164,8 +164,24 @@ public final class PersonVerificationHelper {
         return BS_PASS.equals(user.bsStatus.trim());
     }
 
+    /** bindStatus：1-已绑定，0-未绑定 */
     public static boolean isBound(ActiveUserBaseDTO user) {
-        return "0".equals(user.bindStatus);
+        return user != null && "1".equals(trimToEmpty(user.bindStatus));
+    }
+
+    /** passType=TP 或 mainAppTypeCode=02（日卡） */
+    public static boolean isTpPassType(ActiveUserBaseDTO user) {
+        if (user == null) {
+            return false;
+        }
+        if ("TP".equalsIgnoreCase(trimToEmpty(user.passType))) {
+            return true;
+        }
+        return MAIN_TP.equals(user.mainAppTypeCode);
+    }
+
+    private static String trimToEmpty(@Nullable String value) {
+        return value == null ? "" : value.trim();
     }
 
     public static boolean isActivated(Context context, String activeId, ActiveUserBaseDTO user) {
@@ -184,7 +200,7 @@ public final class PersonVerificationHelper {
     }
 
     public static boolean isValidityOk(ActiveUserBaseDTO user) {
-        if (MAIN_TP.equals(user.mainAppTypeCode)) {
+        if (isTpPassType(user)) {
             return isTodayValid(user.effectiveDateOfDayPass);
         }
         return isValidPeriod(

@@ -370,6 +370,28 @@ public class AppPreferences {
     }
 
     /**
+     * 解析活动代码 eventCode（updateCardInfo 必填）。
+     * 优先取当前活动 {@link com.largeevent.management.model.BasicInfo.ActiveModel#accreditationCode}，
+     * 否则回退为 activityId。
+     */
+    @Nullable
+    public static String resolveEventCode(
+            Context context, @Nullable com.largeevent.management.model.BasicInfo basicInfo) {
+        String activityId = getLastActiveId(context);
+        if (basicInfo != null && !TextUtils.isEmpty(activityId)) {
+            for (com.largeevent.management.model.BasicInfo.ActiveModel model : basicInfo.getActiveModels()) {
+                if (model == null || model.id == null) {
+                    continue;
+                }
+                if (activityId.equals(model.id) && !TextUtils.isEmpty(model.accreditationCode)) {
+                    return model.accreditationCode.trim();
+                }
+            }
+        }
+        return TextUtils.isEmpty(activityId) ? null : activityId.trim();
+    }
+
+    /**
      * 设置设备编码
      */
     public static void setDeviceCode(Context context, String deviceCode) {

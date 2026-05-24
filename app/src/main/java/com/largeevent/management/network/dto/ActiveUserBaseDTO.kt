@@ -205,7 +205,7 @@ class ActiveUserBaseDTO { // Getters
     @JvmField
     var deleted: String? = null
 
-    /** 绑定状态(0-已绑定 1-未绑定)  */
+    /** 现场绑定实名证件：1-已绑定，0-未绑定  */
     @JvmField
     var bindStatus: String? = null
 

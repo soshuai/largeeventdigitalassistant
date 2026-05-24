@@ -139,7 +139,7 @@ interface ApiService {
      * @return 响应体
      */
     @POST("androidNew/api/updateCardInfo")
-    fun updateCardInfo(@Body updateCardInfoDTO: UpdateCardInfoDTO?): Call<ResponseBody?>?
+    fun updateCardInfo(@Body updateCardInfoDTO: UpdateCardInfoDTO?): Call<ApiResponse<Void?>?>?
 
     /**
      * 设备信息注册接口

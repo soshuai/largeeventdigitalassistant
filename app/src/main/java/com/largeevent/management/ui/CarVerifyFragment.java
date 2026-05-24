@@ -436,10 +436,23 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         // 核验通过
         setVerifying(false);
 
-        // 上传成功记录
-        uploadCheckRecord(info, true, "核验通过: 车辆信息匹配，车证有效");
+        String plateNumber = resolvePlateNumber(info);
+        String plateDisplay = TextUtils.isEmpty(plateNumber) ? "—" : plateNumber;
 
-        recordAndOpen(new VerificationResult(VerificationResultType.PASS, "核验通过", "车辆信息匹配，车证有效", info, false, null, true));
+        uploadCheckRecord(info, true, "核验通过: " + plateDisplay);
+
+        recordAndOpen(new VerificationResult(VerificationResultType.PASS, "核验通过", plateDisplay, info, false, null, true));
+    }
+
+    @Nullable
+    private String resolvePlateNumber(@Nullable CertificateInfo info) {
+        if (info != null && !TextUtils.isEmpty(info.cardSerial)) {
+            return info.cardSerial.trim();
+        }
+        if (currentCarDTO != null && !TextUtils.isEmpty(currentCarDTO.carPlate)) {
+            return currentCarDTO.carPlate.trim();
+        }
+        return "";
     }
 
     /**
