@@ -11,6 +11,7 @@ import com.largeevent.management.network.dto.ActiveUserBaseDTO;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -111,13 +112,15 @@ public final class PersonVerificationHelper {
         }
 
         if (!isValidityOk(user)) {
-            return StepResult.fail(Step.EXPIRED, "无效证件",
-                    MAIN_TP.equals(user.mainAppTypeCode) ? "日通行证不在有效期内" : "证件已失效");
+            String detail = isTpPassType(user)
+                    ? "日通行证不在有效期内或芯片有效期与当日不符"
+                    : "证件已失效";
+            return StepResult.fail(Step.EXPIRED, "无效证件", detail);
         }
 
         if (!isDeviceConfigured(context, activeId)) {
             return StepResult.fail(Step.DEVICE_NOT_CONFIGURED, "无法核验",
-                    "请先在活动设置中选择设备位置、分区并配置通行权限");
+                    "请先在活动设置中同时选择设备所在位置和设备所在分区");
         }
 
         if (!DevicePermissionHelper.certificateMatchesDevice(
@@ -200,21 +203,33 @@ public final class PersonVerificationHelper {
     }
 
     public static boolean isValidityOk(ActiveUserBaseDTO user) {
+        if (user == null) {
+            return false;
+        }
+        boolean cardPeriodOk = isValidPeriod(
+                ActiveUserParser.resolveCardEffectiveDate(user),
+                ActiveUserParser.resolveCardExpirationDate(user));
+        if (!cardPeriodOk) {
+            return false;
+        }
         if (isTpPassType(user)) {
             return isTodayValid(user.effectiveDateOfDayPass);
         }
-        return isValidPeriod(
-                ActiveUserParser.resolveCardEffectiveDate(user),
-                ActiveUserParser.resolveCardExpirationDate(user));
+        return true;
     }
 
+    /**
+     * 设备是否已配置：位置与分区两项均必选（AND），缺一不可。
+     * 通行权限勾选由 {@link DevicePermissionHelper#certificateMatchesDevice} 单独校验。
+     */
     public static boolean isDeviceConfigured(Context context, String activeId) {
+        return hasLocationAndZone(context, activeId);
+    }
+
+    public static boolean hasLocationAndZone(Context context, String activeId) {
         String locationId = AppPreferences.getSelectedLocationId(context, activeId);
         String zoneId = AppPreferences.getSelectedZoneId(context, activeId);
-        if (TextUtils.isEmpty(locationId) || TextUtils.isEmpty(zoneId)) {
-            return false;
-        }
-        return AppPreferences.isDevicePermissionConfigured(context, activeId);
+        return !TextUtils.isEmpty(locationId) && !TextUtils.isEmpty(zoneId);
     }
 
     /**
@@ -379,40 +394,80 @@ public final class PersonVerificationHelper {
         return s == null ? null : s.trim();
     }
 
+    /** TP 日卡：effectiveDateOfDayPass 须为当天，且不得仅依赖芯片较长有效期 bypass。 */
     private static boolean isTodayValid(@Nullable String effectiveDateOfDayPass) {
         if (TextUtils.isEmpty(effectiveDateOfDayPass)) {
-            return true;
+            return false;
         }
         try {
+            String day = effectiveDateOfDayPass.trim();
+            if (day.length() >= 10) {
+                day = day.substring(0, 10);
+            }
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-            return sdf.format(new Date()).equals(effectiveDateOfDayPass.trim());
+            return sdf.format(new Date()).equals(day);
         } catch (Exception e) {
-            return true;
+            return false;
         }
     }
 
+    /**
+     * 按 cardEffectiveDate / cardExpirationDate 判断当前是否在有效期内。
+     */
     private static boolean isValidPeriod(@Nullable String validBegin, @Nullable String validEnd) {
         if (TextUtils.isEmpty(validBegin) && TextUtils.isEmpty(validEnd)) {
-            return true;
+            return false;
         }
-        try {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
-            Date now = new Date();
-            if (!TextUtils.isEmpty(validBegin)) {
-                Date begin = sdf.parse(validBegin.trim());
-                if (begin != null && now.before(begin)) {
-                    return false;
-                }
+        Date now = new Date();
+        if (!TextUtils.isEmpty(validBegin)) {
+            Date begin = parseDateTime(validBegin.trim(), false);
+            if (begin == null || now.before(begin)) {
+                return false;
             }
-            if (!TextUtils.isEmpty(validEnd)) {
-                Date end = sdf.parse(validEnd.trim());
-                if (end != null && now.after(end)) {
-                    return false;
-                }
-            }
-            return true;
-        } catch (Exception e) {
-            return true;
         }
+        if (!TextUtils.isEmpty(validEnd)) {
+            Date end = parseDateTime(validEnd.trim(), true);
+            if (end == null || now.after(end)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Nullable
+    private static Date parseDateTime(String raw, boolean treatDateOnlyAsEndOfDay) {
+        if (TextUtils.isEmpty(raw)) {
+            return null;
+        }
+        String[] patterns = {
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd HH:mm",
+                "yyyy-MM-dd"
+        };
+        for (String pattern : patterns) {
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.getDefault());
+                sdf.setLenient(false);
+                Date parsed = sdf.parse(raw);
+                if (parsed == null) {
+                    continue;
+                }
+                if (treatDateOnlyAsEndOfDay
+                        && "yyyy-MM-dd".equals(pattern)
+                        && raw.length() <= 10) {
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTime(parsed);
+                    cal.set(Calendar.HOUR_OF_DAY, 23);
+                    cal.set(Calendar.MINUTE, 59);
+                    cal.set(Calendar.SECOND, 59);
+                    cal.set(Calendar.MILLISECOND, 999);
+                    return cal.getTime();
+                }
+                return parsed;
+            } catch (Exception ignored) {
+                // try next pattern
+            }
+        }
+        return null;
     }
 }

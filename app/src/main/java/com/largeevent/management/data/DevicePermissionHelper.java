@@ -148,6 +148,7 @@ public final class DevicePermissionHelper {
 
     /**
      * 校验证件是否满足设备权限（场馆/分项/分区/区域均需满足；未配置的类型视为不限制）。
+     * 证件某一维度的 ALL/INF 仅在该维度且设备已配置该维度时视为满足，不会豁免其它维度。
      *
      * @param strictEmptyDevice true 时设备未配置任何权限则拒绝（须先在设置页配置）
      */
@@ -170,11 +171,7 @@ public final class DevicePermissionHelper {
         Set<String> certZones = splitPrivileges(zonePrivileges);
         Set<String> certSports = splitPrivileges(sportPrivileges);
 
-        if (hasFullPrivilege(certVenues) || hasFullPrivilege(certPartitions)
-                || hasFullPrivilege(certZones) || hasFullPrivilege(certSports)) {
-            return true;
-        }
-
+        // 各维度独立校验：证件在「场馆」为 ALL 不代表「区域」也满足设备要求的 Z01 等
         boolean venueOk = device.venueCodes.isEmpty()
                 || hasFullPrivilege(certVenues)
                 || intersects(certVenues, device.venueCodes);

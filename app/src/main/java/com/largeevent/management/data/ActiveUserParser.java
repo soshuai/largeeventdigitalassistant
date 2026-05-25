@@ -149,7 +149,7 @@ public class ActiveUserParser {
             dto.number = firstNonEmpty(dto.registrationNumber, dto.registerNumber);
         }
         if (TextUtils.isEmpty(dto.photo) || !isHttpUrl(dto.photo)) {
-            String resolvedPhoto = resolvePhotoUrlFromDto(dto);
+            String resolvedPhoto = resolveHttpPhotoUrl(dto);
             if (!TextUtils.isEmpty(resolvedPhoto)) {
                 dto.photo = resolvedPhoto;
             }
@@ -222,7 +222,7 @@ public class ActiveUserParser {
                 .setNeedBinding("02".equals(dto.mainAppTypeCode))
                 .setBound("1".equals(dto.bindStatus))
                 .setRealNameRequired(dto.realStatus == 1)
-                .setPhotoUrl(dto.photo)
+                .setPhotoUrl(resolveCertificateDisplayPhoto(dto))
                 .setPassRuleCode(dto.passRuleCode)
                 .setVenuePrivileges(dto.venuePrivileges)
                 .setAreaPrivileges(dto.areaPrivileges)
@@ -369,9 +369,30 @@ public class ActiveUserParser {
         return joinName(dto.preferredFamilyName, dto.preferredGivenName);
     }
 
-    private static String resolvePhotoUrlFromDto(ActiveUserBaseDTO dto) {
+    /**
+     * 查验详情证件照：优先 getActiveUser.verifyPhoto（URL 或 data:image base64）。
+     */
+    @Nullable
+    public static String resolveCertificateDisplayPhoto(@Nullable ActiveUserBaseDTO dto) {
         if (dto == null) {
-            return "";
+            return null;
+        }
+        if (!TextUtils.isEmpty(dto.verifyPhoto)) {
+            return dto.verifyPhoto.trim();
+        }
+        String httpPhoto = resolveHttpPhotoUrl(dto);
+        if (!TextUtils.isEmpty(httpPhoto)) {
+            return httpPhoto;
+        }
+        String fallback = firstNonEmpty(dto.cardReduceImage, dto.photo);
+        return TextUtils.isEmpty(fallback) ? null : fallback.trim();
+    }
+
+    /** 人脸比对等仅需 HTTP 头像 URL 的场景 */
+    @Nullable
+    private static String resolveHttpPhotoUrl(@Nullable ActiveUserBaseDTO dto) {
+        if (dto == null) {
+            return null;
         }
         if (!TextUtils.isEmpty(dto.cardReduceImage) && isHttpUrl(dto.cardReduceImage)) {
             return dto.cardReduceImage.trim();
@@ -382,7 +403,12 @@ public class ActiveUserParser {
         if (!TextUtils.isEmpty(dto.photo) && isHttpUrl(dto.photo)) {
             return dto.photo.trim();
         }
-        return firstNonEmpty(dto.cardReduceImage, dto.photo);
+        return null;
+    }
+
+    private static String resolvePhotoUrlFromDto(ActiveUserBaseDTO dto) {
+        String display = resolveCertificateDisplayPhoto(dto);
+        return display == null ? "" : display;
     }
 
     private static boolean isHttpUrl(String url) {

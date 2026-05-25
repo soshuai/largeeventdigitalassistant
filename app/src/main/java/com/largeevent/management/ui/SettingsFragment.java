@@ -298,6 +298,14 @@ public class SettingsFragment extends Fragment {
             AppPreferences.setLastActiveId(requireContext(), selectedActiveId);
         }
 
+        if (TextUtils.isEmpty(pendingSelectedLocationId)
+                || TextUtils.isEmpty(pendingSelectedZoneId)) {
+            Toast.makeText(requireContext(),
+                    "请同时在活动设置中选择设备所在位置和设备所在分区（两项均必选）",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         // 保存权限选择（无论是否为空都要保存，空集合代表全部取消选中）
         // 使用当前选中的活动ID进行保存，确保活动隔离
         String activeIdForSave = !TextUtils.isEmpty(selectedActiveId) ? selectedActiveId : AppPreferences.getLastActiveId(requireContext());
@@ -307,17 +315,11 @@ public class SettingsFragment extends Fragment {
         AppPreferences.setSelectedAreaPermissions(requireContext(), activeIdForSave, pendingSelectedAreas);
         AppPreferences.setSelectedCertZonePermissions(requireContext(), activeIdForSave, pendingSelectedCertZones);
         
-        // 保存位置和分区ID
-        if (!TextUtils.isEmpty(pendingSelectedLocationId)) {
-            AppPreferences.setSelectedLocationId(requireContext(), activeIdForSave, pendingSelectedLocationId);
-        }
-        if (!TextUtils.isEmpty(pendingSelectedZoneId)) {
-            AppPreferences.setSelectedZoneId(requireContext(), activeIdForSave, pendingSelectedZoneId);
-        }
-        if (!TextUtils.isEmpty(pendingSelectedLocationId) && !TextUtils.isEmpty(pendingSelectedZoneId)) {
-            AppPreferences.setDeviceAuthSynced(requireContext(), activeIdForSave,
-                    pendingSelectedLocationId, pendingSelectedZoneId);
-        }
+        // 保存位置和分区ID（两项同时保存）
+        AppPreferences.setSelectedLocationId(requireContext(), activeIdForSave, pendingSelectedLocationId);
+        AppPreferences.setSelectedZoneId(requireContext(), activeIdForSave, pendingSelectedZoneId);
+        AppPreferences.setDeviceAuthSynced(requireContext(), activeIdForSave,
+                pendingSelectedLocationId, pendingSelectedZoneId);
         AppPreferences.setDevicePermissionConfigured(requireContext(), activeIdForSave,
                 !pendingSelectedVenues.isEmpty()
                         || !pendingSelectedAreas.isEmpty()

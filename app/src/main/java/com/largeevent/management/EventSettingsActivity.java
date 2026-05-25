@@ -730,6 +730,13 @@ public class EventSettingsActivity extends AppCompatActivity {
      * 返回选中的数据给 SettingsFragment
      */
     private void returnResultAndFinish() {
+        if (TextUtils.isEmpty(selectedLocationId) || TextUtils.isEmpty(selectedZoneId)) {
+            Toast.makeText(this,
+                    "请同时选择设备所在位置和设备所在分区（两项均必选）",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         Intent result = new Intent();
         result.putStringArrayListExtra("selected_sessions", new ArrayList<>(getCurrentSelectedSessions()));
         result.putStringArrayListExtra("selected_venues", new ArrayList<>(getCurrentSelectedVenuePermissions()));

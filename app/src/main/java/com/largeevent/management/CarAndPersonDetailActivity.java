@@ -185,15 +185,16 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
                 ivPersonPhoto.setImageResource(R.drawable.ic_card_vehicle);
                 btnChangePhoto.setVisibility(View.GONE);  // 车证不显示更换按钮
             } else if (!TextUtils.isEmpty(info.photoUrl)) {
-                // 人证：显示照片
+                // 人证：显示 getActiveUser.verifyPhoto（URL 或 Base64）
                 ivPersonPhoto.setVisibility(VISIBLE);
-                Glide.with(this).load(info.photoUrl).placeholder(R.drawable.ic_face_placeholder).error(R.drawable.ic_face_placeholder).centerCrop().into(ivPersonPhoto);
+                loadCertificatePhoto(info.photoUrl);
 
                 // 只有在核验失败且是人证不合一的情况下才显示更换按钮
                 boolean isFaceMismatch = result.type == VerificationResultType.FACE_MISMATCH;
                 btnChangePhoto.setVisibility(isFaceMismatch ? VISIBLE : View.GONE);
             } else {
-                //                ivPersonPhoto.setVisibility(View.GONE);
+                ivPersonPhoto.setVisibility(VISIBLE);
+                ivPersonPhoto.setImageResource(R.drawable.ic_face_placeholder);
                 btnChangePhoto.setVisibility(View.GONE);
             }
 
@@ -313,6 +314,53 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
         tvResultDesc.setTypeface(Typeface.DEFAULT);
         tvResultDesc.setTextColor(0xFF6B6F82);
         tvResultDesc.setLetterSpacing(0f);
+    }
+
+    /**
+     * 加载证件照：支持 HTTP URL 与 data:image/jpeg;base64,... 或纯 Base64。
+     */
+    private void loadCertificatePhoto(@Nullable String photoSource) {
+        if (TextUtils.isEmpty(photoSource)) {
+            ivPersonPhoto.setImageResource(R.drawable.ic_face_placeholder);
+            return;
+        }
+        String trimmed = photoSource.trim();
+        if (trimmed.startsWith("data:image") || isLikelyBase64Image(trimmed)) {
+            Bitmap bitmap = decodeBase64Photo(trimmed);
+            if (bitmap != null) {
+                ivPersonPhoto.setImageBitmap(bitmap);
+                return;
+            }
+        }
+        Glide.with(this)
+                .load(trimmed)
+                .placeholder(R.drawable.ic_face_placeholder)
+                .error(R.drawable.ic_face_placeholder)
+                .centerCrop()
+                .into(ivPersonPhoto);
+    }
+
+    private static boolean isLikelyBase64Image(String value) {
+        if (TextUtils.isEmpty(value) || value.startsWith("http")) {
+            return false;
+        }
+        return value.length() > 64 && !value.contains(" ");
+    }
+
+    @Nullable
+    private Bitmap decodeBase64Photo(String source) {
+        try {
+            String base64 = source;
+            int comma = source.indexOf(',');
+            if (comma >= 0) {
+                base64 = source.substring(comma + 1);
+            }
+            byte[] bytes = Base64.decode(base64.trim(), Base64.DEFAULT);
+            return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+        } catch (Exception e) {
+            Log.e(TAG, "Decode certificate photo failed", e);
+            return null;
+        }
     }
 
     private String safe(String value) {
