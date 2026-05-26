@@ -18,7 +18,7 @@ import java.util.Locale;
 
 /**
  * 新版人证通用验证规则（与核验文档一致）。
- * 顺序：注销 → 有效期 → 权限 → 证件类型 → 激活(MP) → 人证合一(MP/芯片)。
+ * 顺序：注销 → 黑名单/背审/发布 → 未绑定(TP) → 有效期 → 权限 → 证件类型 → 激活(MP) → 人证合一(MP/芯片)。
  */
 public final class PersonVerificationHelper {
 
@@ -111,10 +111,13 @@ public final class PersonVerificationHelper {
             return StepResult.fail(Step.EXPIRED, "无效证件", "证件已取消发布");
         }
 
+        // TP 未绑定：优先引导绑定，通过后再校验有效期与权限
+        if (isTpPassType(user) && !isBound(user)) {
+            return StepResult.fail(Step.TP_UNBOUND, "证件未绑定", "请先完成实名绑定", true);
+        }
+
         if (!isValidityOk(user)) {
-            String detail = isTpPassType(user)
-                    ? "日通行证不在有效期内或芯片有效期与当日不符"
-                    : "证件已失效";
+            String detail = isTpPassType(user) ? "日通行证不在有效期内" : "证件已失效";
             return StepResult.fail(Step.EXPIRED, "无效证件", detail);
         }
 
@@ -139,9 +142,6 @@ public final class PersonVerificationHelper {
         }
 
         if (isTpPassType(user)) {
-            if (!isBound(user)) {
-                return StepResult.fail(Step.TP_UNBOUND, "证件未绑定", "请先完成实名绑定", true);
-            }
             return StepResult.ok(Step.TP_PASS);
         }
 
@@ -202,20 +202,16 @@ public final class PersonVerificationHelper {
         return user.cardPublishFlag == PUBLISH_PUBLISHED;
     }
 
+    /**
+     * 仅以 cardEffectiveDate / cardExpirationDate 判断是否在有效期内（与接口文档一致）。
+     */
     public static boolean isValidityOk(ActiveUserBaseDTO user) {
         if (user == null) {
             return false;
         }
-        boolean cardPeriodOk = isValidPeriod(
+        return isValidPeriod(
                 ActiveUserParser.resolveCardEffectiveDate(user),
                 ActiveUserParser.resolveCardExpirationDate(user));
-        if (!cardPeriodOk) {
-            return false;
-        }
-        if (isTpPassType(user)) {
-            return isTodayValid(user.effectiveDateOfDayPass);
-        }
-        return true;
     }
 
     /**
@@ -394,44 +390,52 @@ public final class PersonVerificationHelper {
         return s == null ? null : s.trim();
     }
 
-    /** TP 日卡：effectiveDateOfDayPass 须为当天，且不得仅依赖芯片较长有效期 bypass。 */
-    private static boolean isTodayValid(@Nullable String effectiveDateOfDayPass) {
-        if (TextUtils.isEmpty(effectiveDateOfDayPass)) {
-            return false;
-        }
-        try {
-            String day = effectiveDateOfDayPass.trim();
-            if (day.length() >= 10) {
-                day = day.substring(0, 10);
-            }
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-            return sdf.format(new Date()).equals(day);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
     /**
      * 按 cardEffectiveDate / cardExpirationDate 判断当前是否在有效期内。
+     * 起止均为空视为永久有效；结束时刻含秒时按该秒末尾（含毫秒） inclusive 比较。
      */
     private static boolean isValidPeriod(@Nullable String validBegin, @Nullable String validEnd) {
-        if (TextUtils.isEmpty(validBegin) && TextUtils.isEmpty(validEnd)) {
-            return false;
+        String beginRaw = trimToNull(validBegin);
+        String endRaw = trimToNull(validEnd);
+        if (beginRaw == null && endRaw == null) {
+            return true;
         }
         Date now = new Date();
-        if (!TextUtils.isEmpty(validBegin)) {
-            Date begin = parseDateTime(validBegin.trim(), false);
+        if (beginRaw != null) {
+            Date begin = parseDateTime(beginRaw, false);
             if (begin == null || now.before(begin)) {
                 return false;
             }
         }
-        if (!TextUtils.isEmpty(validEnd)) {
-            Date end = parseDateTime(validEnd.trim(), true);
+        if (endRaw != null) {
+            Date end = parseDateTime(endRaw, true);
+            end = inclusiveEnd(end, endRaw);
             if (end == null || now.after(end)) {
                 return false;
             }
         }
         return true;
+    }
+
+    @Nullable
+    private static String trimToNull(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /** 含时间的结束时刻扩展到该秒末尾，避免 23:59:59.xxx 被误判过期。 */
+    @Nullable
+    private static Date inclusiveEnd(@Nullable Date end, @Nullable String raw) {
+        if (end == null || raw == null) {
+            return end;
+        }
+        if (raw.contains(":")) {
+            return new Date(end.getTime() + 999L);
+        }
+        return end;
     }
 
     @Nullable
@@ -442,6 +446,7 @@ public final class PersonVerificationHelper {
         String[] patterns = {
                 "yyyy-MM-dd HH:mm:ss",
                 "yyyy-MM-dd HH:mm",
+                "yyyy-MM-dd'T'HH:mm:ss",
                 "yyyy-MM-dd"
         };
         for (String pattern : patterns) {

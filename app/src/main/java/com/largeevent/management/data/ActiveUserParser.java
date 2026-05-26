@@ -191,6 +191,22 @@ public class ActiveUserParser {
     }
 
     /**
+     * TP 日卡「当日通行」判定日期：优先 effectiveDateOfDayPass，缺失时回退 cardEffectiveDate。
+     * getActiveUser 常只返回 cardEffectiveDate / cardExpirationDate，不单独下发日卡字段。
+     */
+    @Nullable
+    public static String resolveTpDayPassDate(ActiveUserBaseDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        String dayPass = dto.effectiveDateOfDayPass;
+        if (dayPass != null && !dayPass.trim().isEmpty()) {
+            return dayPass.trim();
+        }
+        return resolveCardEffectiveDate(dto);
+    }
+
+    /**
      * 从 ActiveUserBaseDTO 构建 CertificateInfo
      */
     public static CertificateInfo buildCertificateInfo(ActiveUserBaseDTO dto, String fallbackChipId) {
@@ -228,7 +244,7 @@ public class ActiveUserParser {
                 .setAreaPrivileges(dto.areaPrivileges)
                 .setZonePrivileges(dto.zonePrivileges)
                 .setSportPrivileges(dto.sportPrivileges)
-                .setEffectiveDateOfDayPass(dto.effectiveDateOfDayPass);
+                .setEffectiveDateOfDayPass(resolveTpDayPassDate(dto));
 
         return builder.build();
     }
@@ -389,6 +405,11 @@ public class ActiveUserParser {
     }
 
     /** 人脸比对等仅需 HTTP 头像 URL 的场景 */
+    @Nullable
+    public static String resolveFaceMatchCertPhotoUrl(@Nullable ActiveUserBaseDTO dto) {
+        return resolveHttpPhotoUrl(dto);
+    }
+
     @Nullable
     private static String resolveHttpPhotoUrl(@Nullable ActiveUserBaseDTO dto) {
         if (dto == null) {

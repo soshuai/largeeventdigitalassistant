@@ -3,9 +3,22 @@ package com.largeevent.management.network.dto
 import com.google.gson.annotations.SerializedName
 
 /**
- * 人脸比对响应 DTO（百度 API 原始返回格式）
+ * 人脸比对响应 DTO。
+ * 兼容两种格式：
+ * 1. 服务端包装：{ "code": 200, "msg": "...", "data": { "result": { "score": ... } } }
+ * 2. 百度原始：{ "error_code": 0, "error_msg": "SUCCESS", "result": { "score": ... } }
  */
 class FaceMatchResponseDTO {
+    /** 服务端通用 code（200 表示成功） */
+    @JvmField
+    var code: Int? = null
+
+    @JvmField
+    var msg: String? = null
+
+    @JvmField
+    var data: DataPayload? = null
+
     @JvmField
     @SerializedName("error_code")
     var errorCode: Int = 0
@@ -16,6 +29,19 @@ class FaceMatchResponseDTO {
 
     @JvmField
     var result: Result? = null
+
+    class DataPayload {
+        @JvmField
+        @SerializedName("error_code")
+        var errorCode: Int = 0
+
+        @JvmField
+        @SerializedName("error_msg")
+        var errorMsg: String? = null
+
+        @JvmField
+        var result: Result? = null
+    }
 
     class Result {
         @JvmField
@@ -32,16 +58,38 @@ class FaceMatchResponseDTO {
         var faceToken: String? = null
     }
 
-    /** 百度 error_code == 0 表示成功 */
+    /** 接口是否成功 */
     fun isSuccess(): Boolean {
+        if (code != null) {
+            if (code != 200) {
+                return false
+            }
+            data?.let {
+                if (it.errorCode != 0) {
+                    return false
+                }
+            }
+            return true
+        }
         return errorCode == 0
     }
 
+    fun resolveResult(): Result? {
+        data?.result?.let { return it }
+        return result
+    }
+
     fun getScore(): Double {
-        return result?.score ?: 0.0
+        return resolveResult()?.score ?: 0.0
     }
 
     fun getErrorMessage(): String? {
-        return errorMsg
+        if (!msg.isNullOrBlank()) {
+            return msg
+        }
+        if (!errorMsg.isNullOrBlank()) {
+            return errorMsg
+        }
+        return data?.errorMsg
     }
 }

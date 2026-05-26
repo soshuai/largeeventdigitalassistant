@@ -1,12 +1,9 @@
 package com.largeevent.management.ui;
 
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Base64;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -23,6 +20,7 @@ import androidx.fragment.app.Fragment;
 import com.bumptech.glide.Glide;
 import com.largeevent.management.*;
 import com.largeevent.management.R;
+import com.largeevent.management.image.ImageBase64Helper;
 import com.largeevent.management.camera.CameraCallback;
 import com.largeevent.management.camera.CameraHelper;
 import com.largeevent.management.data.ActiveUserParser;
@@ -46,14 +44,19 @@ import com.largeevent.management.network.dto.ReceiveCheckPersonDTO;
 import com.largeevent.management.nfc.NfcCallback;
 import com.largeevent.management.widget.CommonConfig;
 
-import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.collection.CollectionUtil;
@@ -79,6 +82,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     private String latestPhotoPath;
     private boolean verifying;
     private ActiveUserBaseDTO currentUserDTO;  // 保存当前核验的用户数据
+    private ExecutorService faceMatchExecutor;
 
     @Nullable
     @Override
@@ -94,6 +98,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
         btnStartVerify = view.findViewById(R.id.btn_start_verify);
 
         initializationRepository = new InitializationRepository(requireContext());
+        faceMatchExecutor = Executors.newSingleThreadExecutor();
         cameraHelper = new CameraHelper(this);
         cameraHelper.setCameraCallback(new CameraCallback() {
             @Override
@@ -383,32 +388,93 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             return;
         }
 
-        // 检查是否有头像 URL
-        String photoUrl = userDTO.photo;
-        if (TextUtils.isEmpty(photoUrl)) {
+        // 证件头像：优先 verifyPhoto（常为 Base64），其次 HTTP URL / 相对路径
+        String certPhotoSource = ActiveUserParser.resolveCertificateDisplayPhoto(userDTO);
+        if (TextUtils.isEmpty(certPhotoSource)) {
             setVerifying(false);
             openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "无法比对", "证件没有头像信息，无法进行人脸比对", info), "证件缺少头像");
             return;
         }
 
-        // 现场拍照转 Base64；证件头像按文档以 URL 传入
-        String base64Image = convertImageToBase64(latestPhotoPath);
+        // 现场拍照转 Base64；证件头像下载后同样转 Base64 再比对
+        String base64Image = ImageBase64Helper.encodeJpegFileForFaceMatch(latestPhotoPath);
         if (TextUtils.isEmpty(base64Image)) {
             setVerifying(false);
             Toast.makeText(requireContext(), "照片处理失败", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        performFaceMatch(base64Image, photoUrl.trim(), info, userDTO);
+        String trimmedCertSource = certPhotoSource.trim();
+        String apiBaseUrl = NetworkManager.getInstance().getCurrentBaseUrl();
+        faceMatchExecutor.execute(() -> {
+            String certPhotoBase64 = ImageBase64Helper.encodeCertPhotoSourceForFaceMatch(
+                    trimmedCertSource, apiBaseUrl);
+            if (!isAdded()) {
+                return;
+            }
+            requireActivity().runOnUiThread(() -> {
+                if (!TextUtils.isEmpty(certPhotoBase64)) {
+                    performFaceMatch(base64Image, certPhotoBase64, info, userDTO);
+                    return;
+                }
+                // Base64 转换失败时，若源为 HTTP URL 则回退为 URL 方式比对
+                String certPhotoUrl = resolveHttpCertPhotoUrl(trimmedCertSource, apiBaseUrl);
+                if (!TextUtils.isEmpty(certPhotoUrl)) {
+                    Log.w(TAG, "Cert photo base64 failed, fallback to URL: " + certPhotoUrl);
+                    performFaceMatchWithCertUrl(base64Image, certPhotoUrl, info, userDTO);
+                    return;
+                }
+                setVerifying(false);
+                openResult(new VerificationResult(
+                        VerificationResultType.INVALID_CERT,
+                        "无法比对",
+                        "证件头像处理失败，无法进行人脸比对",
+                        info), "证件头像处理失败");
+            });
+        });
+    }
+
+    @Nullable
+    private String resolveHttpCertPhotoUrl(String certPhotoSource, @Nullable String apiBaseUrl) {
+        String absolute = ImageBase64Helper.resolveAbsolutePhotoUrl(certPhotoSource, apiBaseUrl);
+        if (!TextUtils.isEmpty(absolute)) {
+            return absolute;
+        }
+        return ActiveUserParser.resolveFaceMatchCertPhotoUrl(currentUserDTO);
     }
 
     /**
-     * 执行人脸比对（文档：第 1 张 BASE64 现场照，第 2 张 URL 证件头像）
+     * 执行人脸比对（两张图均以 BASE64 传入）
      */
-    private void performFaceMatch(String livePhotoBase64, String certPhotoUrl, CertificateInfo info, ActiveUserBaseDTO userDTO) {
+    private void performFaceMatch(String livePhotoBase64, String certPhotoBase64, CertificateInfo info, ActiveUserBaseDTO userDTO) {
+        saveFaceMatchBase64ToFile(livePhotoBase64);
+
+        List<FaceMatchParamDTO> faceMatchParams = new ArrayList<>();
+        faceMatchParams.add(new FaceMatchParamDTO(livePhotoBase64, "BASE64", "LIVE"));
+        faceMatchParams.add(new FaceMatchParamDTO(certPhotoBase64, "BASE64", "LIVE"));
+        requestFaceMatch(faceMatchParams, info, userDTO);
+    }
+
+    /**
+     * 证件头像 Base64 不可用时，回退为 URL 方式比对。
+     */
+    private void performFaceMatchWithCertUrl(
+            String livePhotoBase64,
+            String certPhotoUrl,
+            CertificateInfo info,
+            ActiveUserBaseDTO userDTO) {
+        saveFaceMatchBase64ToFile(livePhotoBase64);
+
         List<FaceMatchParamDTO> faceMatchParams = new ArrayList<>();
         faceMatchParams.add(new FaceMatchParamDTO(livePhotoBase64, "BASE64", "LIVE"));
         faceMatchParams.add(new FaceMatchParamDTO(certPhotoUrl, "URL", "LIVE"));
+        requestFaceMatch(faceMatchParams, info, userDTO);
+    }
+
+    private void requestFaceMatch(
+            List<FaceMatchParamDTO> faceMatchParams,
+            CertificateInfo info,
+            ActiveUserBaseDTO userDTO) {
 
         // 调用人脸比对接口
         ApiService apiService = NetworkManager.getInstance().getApiService();
@@ -419,43 +485,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             public void onResponse(@NonNull Call<FaceMatchResponseDTO> call, @NonNull Response<FaceMatchResponseDTO> response) {
                 if (!isAdded())
                     return;
-                requireActivity().runOnUiThread(() -> {
-                    if (!response.isSuccessful() || response.body() == null) {
-                        setVerifying(false);
-                        openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "人脸比对失败", "服务器错误，状态码：" + response.code(), info), "人脸比对失败");
-                        return;
-                    }
-
-                    FaceMatchResponseDTO faceMatchResponse = response.body();
-
-                    // 百度 error_code == 0 表示成功
-                    if (!faceMatchResponse.isSuccess()) {
-                        setVerifying(false);
-                        openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "人脸比对失败", faceMatchResponse.getErrorMessage(), info), "人脸比对失败");
-                        return;
-                    }
-
-                    FaceMatchResponseDTO.Result result = faceMatchResponse.result;
-                    if (result == null) {
-                        setVerifying(false);
-                        openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "人脸比对失败", "", info), "人脸比对失败");
-                        return;
-                    }
-
-                    double score = result.score;
-                    Log.d(TAG, "Face match score: " + score);
-
-                    // score >= 80 才算成功
-                    if (score < 80) {
-                        setVerifying(false);
-                        String activeId = AppPreferences.getLastActiveId(requireContext());
-                        openResult(new VerificationResult(VerificationResultType.FACE_MISMATCH, PersonVerificationHelper.faceMismatchTitle(requireContext(), activeId), PersonVerificationHelper.faceMismatchDescription(requireContext(), activeId), info), "请检查证件");
-                        return;
-                    }
-
-                    Log.d(TAG, "Face match passed, score: " + score);
-                    finishPass(info);
-                });
+                requireActivity().runOnUiThread(() -> handleFaceMatchResponse(response, info));
             }
 
             @Override
@@ -469,6 +499,42 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
                 });
             }
         });
+    }
+
+    private void handleFaceMatchResponse(@NonNull Response<FaceMatchResponseDTO> response, CertificateInfo info) {
+        if (!response.isSuccessful() || response.body() == null) {
+            setVerifying(false);
+            openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "人脸比对失败", "服务器错误，状态码：" + response.code(), info), "人脸比对失败");
+            return;
+        }
+
+        FaceMatchResponseDTO faceMatchResponse = response.body();
+
+        if (!faceMatchResponse.isSuccess()) {
+            setVerifying(false);
+            openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "人脸比对失败", faceMatchResponse.getErrorMessage(), info), "人脸比对失败");
+            return;
+        }
+
+        double score = faceMatchResponse.getScore();
+        if (faceMatchResponse.resolveResult() == null) {
+            setVerifying(false);
+            openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "人脸比对失败", "未返回比对分数", info), "人脸比对失败");
+            return;
+        }
+
+        Log.d(TAG, "Face match score: " + score);
+
+        // score >= 80 才算成功
+        if (score < 80) {
+            setVerifying(false);
+            String activeId = AppPreferences.getLastActiveId(requireContext());
+            openResult(new VerificationResult(VerificationResultType.FACE_MISMATCH, PersonVerificationHelper.faceMismatchTitle(requireContext(), activeId), PersonVerificationHelper.faceMismatchDescription(requireContext(), activeId), info), "请检查证件");
+            return;
+        }
+
+        Log.d(TAG, "Face match passed, score: " + score);
+        finishPass(info);
     }
 
     private void finishPass(CertificateInfo info) {
@@ -496,7 +562,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             String photoBase64 = null;
             if (!TextUtils.isEmpty(latestPhotoPath)) {
                 try {
-                    photoBase64 = convertImageToBase64(latestPhotoPath);
+                    photoBase64 = ImageBase64Helper.encodeJpegFileForFaceMatch(latestPhotoPath);
                     Log.d(TAG, "核验上传照片 Base64 长度: "
                             + (photoBase64 != null ? photoBase64.length() : 0));
                 } catch (Exception e) {
@@ -580,28 +646,28 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     }
 
     /**
-     * 将图片转换为 Base64 字符串
+     * 人脸比对时将现场照 Base64 单独落盘，便于排查比对问题。
+     * 路径：Android/data/.../files/face_match/face_match_yyyyMMdd_HHmmss.txt
      */
-    private String convertImageToBase64(String imagePath) {
+    private void saveFaceMatchBase64ToFile(@Nullable String base64Image) {
+        if (TextUtils.isEmpty(base64Image) || getContext() == null) {
+            return;
+        }
         try {
-            FileInputStream fis = new FileInputStream(imagePath);
-            Bitmap bitmap = BitmapFactory.decodeStream(fis);
-            fis.close();
-
-            if (bitmap == null) {
-                return null;
+            File dir = new File(getContext().getExternalFilesDir(null), "face_match");
+            if (!dir.exists() && !dir.mkdirs()) {
+                Log.w(TAG, "Create face_match dir failed");
+                return;
             }
-
-            // 压缩图片
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
-            byte[] imageBytes = baos.toByteArray();
-
-            // 转换为 Base64（不包含 data:image/jpeg;base64, 前缀）
-            return Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            String chipSuffix = TextUtils.isEmpty(currentChipId) ? "" : "_" + currentChipId;
+            File file = new File(dir, "face_match_" + timestamp + chipSuffix + ".txt");
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(base64Image.getBytes(StandardCharsets.UTF_8));
+            }
+            Log.i(TAG, "Face match base64 saved: " + file.getAbsolutePath());
         } catch (Exception e) {
-            Log.e(TAG, "Convert image to base64 failed", e);
-            return null;
+            Log.e(TAG, "Save face match base64 failed", e);
         }
     }
 
@@ -620,6 +686,10 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        if (faceMatchExecutor != null) {
+            faceMatchExecutor.shutdownNow();
+            faceMatchExecutor = null;
+        }
         if (initializationRepository != null) {
             initializationRepository.close();
             initializationRepository = null;

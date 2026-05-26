@@ -65,7 +65,11 @@ class CertificateInfo(
         try {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val todayStr = sdf.format(Date(nowMillis))
-            return todayStr == effectiveDateOfDayPass
+            var dayPass = effectiveDateOfDayPass!!.trim()
+            if (dayPass.length >= 10) {
+                dayPass = dayPass.substring(0, 10)
+            }
+            return todayStr == dayPass
         } catch (e: Exception) {
             return true
         }
