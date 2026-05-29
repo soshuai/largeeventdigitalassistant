@@ -6,8 +6,6 @@
     android:background="#F4F7FC"
     android:orientation="vertical">
 
-
-    <!-- Toolbar -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
@@ -21,11 +19,13 @@
         app:titleTextAppearance="@style/TextAppearance.AppCompat.Title"
         app:titleTextColor="@color/white" />
 
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/nested_scroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:overScrollMode="never">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -33,20 +33,19 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- 筛选区域 -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/filter_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="12dp"
                 app:cardBackgroundColor="@android:color/white"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp">
 
                 <FrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent">
-                    <!-- 顶部蓝色透明装饰条 -->
+                    android:layout_height="wrap_content">
+
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="57dp"
@@ -55,201 +54,147 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="13dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginBottom="16dp"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <ImageView
-                                    android:layout_width="28dp"
-                                    android:layout_height="28dp"
-                                    android:layout_marginEnd="8dp"
-                                    android:src="@drawable/ic_card_record" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="记录类型"
-                                    android:textColor="#2B2F43"
-                                    android:textSize="18sp"
-                                    android:textStyle="bold" />
-                            </LinearLayout>
-
-                            <!-- 记录类型筛选 -->
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginBottom="8dp"
-                                android:text="记录类型："
-                                android:textColor="#4A4F63"
-                                android:textSize="14sp" />
-
-                            <Spinner
-                                android:id="@+id/spinner_record_type"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginBottom="8dp"
-                                android:background="@drawable/bg_outline_button1"
-                                android:popupBackground="@android:color/white"
-                                android:spinnerMode="dropdown" />
-
-                            <!-- 核验结果筛选 -->
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginBottom="8dp"
-                                android:text="核验结果："
-                                android:textColor="#4A4F63"
-                                android:textSize="14sp" />
-
-                            <Spinner
-                                android:id="@+id/spinner_result_type"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginBottom="8dp"
-                                android:background="@drawable/bg_outline_button1"
-                                android:spinnerMode="dropdown" />
-
-                            <!-- 日期范围筛选 -->
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginBottom="8dp"
-                                android:text="日期范围："
-                                android:textColor="#4A4F63"
-                                android:textSize="14sp" />
-
-                            <Spinner
-                                android:id="@+id/spinner_date_range"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginBottom="8dp"
-                                android:background="@drawable/bg_outline_button1"
-                                android:spinnerMode="dropdown" />
-
-                            <!-- 重置和筛选按钮 -->
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center"
-                                android:orientation="horizontal">
-
-                                <TextView
-                                    android:id="@+id/btn_reset"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginEnd="12dp"
-                                    android:layout_weight="1"
-                                    android:background="@drawable/bg_outline_button"
-                                    android:clickable="true"
-                                    android:focusable="true"
-                                    android:gravity="center"
-                                    android:minHeight="32dp"
-                                    android:paddingTop="6dp"
-                                    android:paddingBottom="6dp"
-                                    android:text="重置"
-                                    android:textColor="#4A4F63"
-                                    android:textSize="14sp" />
-
-                                <TextView
-                                    android:id="@+id/btn_filter"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:background="@drawable/bg_button_primary"
-                                    android:clickable="true"
-                                    android:focusable="true"
-                                    android:gravity="center"
-                                    android:minHeight="32dp"
-                                    android:paddingTop="6dp"
-                                    android:paddingBottom="6dp"
-                                    android:text="筛选"
-                                    android:textColor="@color/white"
-                                    android:textSize="14sp" />
-                            </LinearLayout>
-                        </LinearLayout>
-                    </LinearLayout>
-
-                </FrameLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_marginBottom="12dp"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                app:cardBackgroundColor="@android:color/white"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="4dp">
-
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent">
-                    <!-- 顶部蓝色透明装饰条 -->
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="40dp"
-                        android:background="#E8F0FE" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="12dp">
-                        <!-- 记录列表头部 -->
+                        android:padding="13dp">
+
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:layout_marginBottom="16dp"
                             android:gravity="center_vertical"
                             android:orientation="horizontal">
 
+                            <ImageView
+                                android:layout_width="28dp"
+                                android:layout_height="28dp"
+                                android:layout_marginEnd="8dp"
+                                android:src="@drawable/ic_card_record" />
+
                             <TextView
-                                android:id="@+id/tv_record_count"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="记录类型"
+                                android:textColor="#2B2F43"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:text="记录类型："
+                            android:textColor="#4A4F63"
+                            android:textSize="14sp" />
+
+                        <Spinner
+                            android:id="@+id/spinner_record_type"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:background="@drawable/bg_outline_button1"
+                            android:popupBackground="@android:color/white"
+                            android:spinnerMode="dropdown" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:text="核验结果："
+                            android:textColor="#4A4F63"
+                            android:textSize="14sp" />
+
+                        <Spinner
+                            android:id="@+id/spinner_result_type"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:background="@drawable/bg_outline_button1"
+                            android:spinnerMode="dropdown" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:text="日期范围："
+                            android:textColor="#4A4F63"
+                            android:textSize="14sp" />
+
+                        <Spinner
+                            android:id="@+id/spinner_date_range"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:background="@drawable/bg_outline_button1"
+                            android:spinnerMode="dropdown" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/btn_reset"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="12dp"
+                                android:layout_weight="1"
+                                android:background="@drawable/bg_outline_button"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:minHeight="32dp"
+                                android:paddingTop="6dp"
+                                android:paddingBottom="6dp"
+                                android:text="重置"
+                                android:textColor="#4A4F63"
+                                android:textSize="14sp" />
+
+                            <TextView
+                                android:id="@+id/btn_filter"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="共0条记录"
-                                android:textColor="#2B2F43"
-                                android:textSize="15sp" />
-
-                            <TextView
-                                android:id="@+id/btn_upload"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:background="@drawable/bg_button_primary1"
-                                android:drawableStart="@drawable/ic_upload"
-                                android:drawablePadding="4dp"
-                                android:drawableTint="@color/white"
+                                android:background="@drawable/bg_button_primary"
+                                android:clickable="true"
+                                android:focusable="true"
                                 android:gravity="center"
-                                android:text="上传记录"
+                                android:minHeight="32dp"
+                                android:paddingTop="6dp"
+                                android:paddingBottom="6dp"
+                                android:text="筛选"
                                 android:textColor="@color/white"
-                                android:textSize="13sp"
-                                android:visibility="gone" />
+                                android:textSize="14sp" />
                         </LinearLayout>
-
-                        <!-- 记录列表 -->
-                        <androidx.recyclerview.widget.RecyclerView
-                            android:id="@+id/recycler_records"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp" />
                     </LinearLayout>
                 </FrameLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <TextView
+                android:id="@+id/tv_record_count"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="共0条记录"
+                android:textColor="#5C6478"
+                android:textSize="14sp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler_records"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                android:overScrollMode="never"
+                android:paddingBottom="8dp" />
 
         </LinearLayout>
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
+
+    <TextView
+        android:id="@+id/btn_upload"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
 
 </LinearLayout>
-

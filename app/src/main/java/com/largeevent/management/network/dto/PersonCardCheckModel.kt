@@ -43,6 +43,10 @@ class PersonCardCheckModel {
     @JvmField
     var cardNumber: String = ""
 
+    /** 证件号（列表展示用，优先于 cardNumber） */
+    @JvmField
+    var idNumber: String = ""
+
     @JvmField
     var cardId: String = ""
 
@@ -62,5 +66,6 @@ class PersonCardCheckModel {
     var imageName: String = ""
 
     @JvmField
+    /** 现场照 URL */
     var remark: String = ""
 }

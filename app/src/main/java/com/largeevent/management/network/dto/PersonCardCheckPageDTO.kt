@@ -23,6 +23,7 @@ class PersonCardCheckPageDTO {
     var activityId: String? = null
 
     @JvmField
+    /** 查询筛选：null=全部，0=核验失败，1=核验成功 */
     var verifyStatus: Int? = null
 
     @JvmField
