@@ -94,6 +94,10 @@ class ActiveUserBaseDTO { // Getters
     @JvmField
     var activityId: String? = null
 
+    /** 活动编码（接口字段 activityCode，replacePhoto 的 eventCode）  */
+    @JvmField
+    var activityCode: String? = null
+
     /** 证件缩略图 URL  */
     @JvmField
     var cardReduceImage: String? = null

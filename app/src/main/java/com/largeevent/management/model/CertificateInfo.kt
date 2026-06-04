@@ -29,7 +29,11 @@ class CertificateInfo(
     @JvmField val areaPrivileges: String?,
     @JvmField val zonePrivileges: String?,
     @JvmField val sportPrivileges: String?,
-    @JvmField val effectiveDateOfDayPass: String?
+    @JvmField val effectiveDateOfDayPass: String?,
+    /** getActiveUser.activityId → replacePhoto.activityId */
+    @JvmField val activityId: String?,
+    /** getActiveUser.activityCode → replacePhoto.eventCode */
+    @JvmField val activityCode: String?
 ) : Serializable {
     @JvmField
     val areaPermissions: MutableSet<String?>
@@ -113,6 +117,8 @@ class CertificateInfo(
         private var zonePrivileges: String? = null
         private var sportPrivileges: String? = null
         private var effectiveDateOfDayPass: String? = null
+        private var activityId: String? = null
+        private var activityCode: String? = null
 
         fun setCertId(certId: String?): Builder {
             this.certId = certId
@@ -226,6 +232,16 @@ class CertificateInfo(
             return this
         }
 
+        fun setActivityId(activityId: String?): Builder {
+            this.activityId = activityId
+            return this
+        }
+
+        fun setActivityCode(activityCode: String?): Builder {
+            this.activityCode = activityCode
+            return this
+        }
+
         fun build(): CertificateInfo {
             return CertificateInfo(
                 certId,
@@ -249,7 +265,9 @@ class CertificateInfo(
                 areaPrivileges,
                 zonePrivileges,
                 sportPrivileges,
-                effectiveDateOfDayPass
+                effectiveDateOfDayPass,
+                activityId,
+                activityCode
             )
         }
     }

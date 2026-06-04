@@ -579,15 +579,17 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
             return;
         }
 
-        // 获取活动编码
-        String activeCode = getActiveCode();
-        if (TextUtils.isEmpty(activeCode)) {
+        CertificateInfo certInfo = currentResult.certificateInfo;
+        String activityId = certInfo.activityId;
+        String eventCode = certInfo.activityCode;
+        if (TextUtils.isEmpty(activityId)) {
+            Toast.makeText(this, "获取活动ID失败", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (TextUtils.isEmpty(eventCode)) {
             Toast.makeText(this, "获取活动编码失败", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        // 获取活动ID
-        String activityId = AppPreferences.getLastActiveId(this);
 
         // 转换照片为 Base64（带前缀）
         String base64Img = convertImageToBase64WithPrefix(latestPhotoPath);
@@ -596,8 +598,8 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
             return;
         }
 
-        // 构建请求数据
-        ReplacePhotoDTO replacePhotoDTO = new ReplacePhotoDTO(accId, activeCode, base64Img);
+        // activityId / eventCode 取自 getActiveUser 的 activityId、activityCode
+        ReplacePhotoDTO replacePhotoDTO = new ReplacePhotoDTO(accId, eventCode, base64Img);
         replacePhotoDTO.activityId = activityId;
 
         // 调用接口
@@ -642,13 +644,6 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
                 });
             }
         });
-    }
-
-    /**
-     * 获取活动编码
-     */
-    private String getActiveCode() {
-        return AppPreferences.getLastActiveId(this);
     }
 
     /**

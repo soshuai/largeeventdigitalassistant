@@ -62,6 +62,7 @@ public class ActiveUserParser {
         dto.preferredGivenName = json.optString("preferredGivenName");
         dto.chipid = json.optString("chipid");
         dto.activityId = json.optString("activityId");
+        dto.activityCode = json.optString("activityCode");
         dto.cardReduceImage = json.optString("cardReduceImage");
         dto.number = firstNonEmpty(
                 json.optString("number"),
@@ -244,7 +245,9 @@ public class ActiveUserParser {
                 .setAreaPrivileges(dto.areaPrivileges)
                 .setZonePrivileges(dto.zonePrivileges)
                 .setSportPrivileges(dto.sportPrivileges)
-                .setEffectiveDateOfDayPass(resolveTpDayPassDate(dto));
+                .setEffectiveDateOfDayPass(resolveTpDayPassDate(dto))
+                .setActivityId(dto.activityId)
+                .setActivityCode(dto.activityCode);
 
         return builder.build();
     }

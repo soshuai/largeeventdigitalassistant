@@ -84,6 +84,8 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     private ActiveUserBaseDTO currentUserDTO;  // 保存当前核验的用户数据
     private ExecutorService faceMatchExecutor;
 
+    private final boolean test = false;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -224,7 +226,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     }
 
     private void startVerification() {
-        if (false) {
+        if (test) {
             //TODO 测试 E00401531D5F1031 、E00401531D5F73AE
             currentChipId = "E00401531D5F73AE";
         } else {
