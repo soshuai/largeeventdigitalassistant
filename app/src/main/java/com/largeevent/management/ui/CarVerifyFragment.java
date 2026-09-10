@@ -693,89 +693,35 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         }
 
         try {
-            // 获取 BasicInfo 对象
             BasicInfo basicInfo = initializationRepository.getBasicInfo();
             if (basicInfo == null) {
                 Log.w(TAG, "getRequiredPermissionSummary: BasicInfo为null");
                 return "未初始化";
             }
 
-            // 获取设备配置的场馆和区域（配置中保存的是名称，使用当前活动ID确保活动隔离）
             String currentActiveId = AppPreferences.getLastActiveId(requireContext());
-            Set<String> configuredVenues = AppPreferences.getSelectedVenuePermissions(requireContext(), currentActiveId);
-            Log.d(TAG, "getRequiredPermissionSummary - 配置的场馆（名称）: " + (configuredVenues != null ? configuredVenues.toString() : "null"));
-            // 获取车证的场馆和区域
-            String areaField = carDTO.area;  // 场馆权限
-            Log.d(TAG, "getRequiredPermissionSummary - 车证area字段(场馆): " + areaField);
-            // 检查场馆权限：将配置的场馆与车证的area进行比较
-            if (configuredVenues != null && !configuredVenues.isEmpty()) {
-                // 将配置的场馆名称转换为 venueCode 集合
-                Set<String> configuredVenueCodes = new HashSet<>();
-                List<ActiveVenueModel> allVenues = basicInfo.getActiveVenues();
+            DevicePermissionHelper.PermissionSets device =
+                    DevicePermissionHelper.resolveDevicePermissions(
+                            requireContext(), currentActiveId, basicInfo, ModuleType.VEHICLE);
+            Log.d(TAG, "设备权限(matrixAuth) venue=" + device.venueCodes
+                    + ", partition=" + device.partitionCodes
+                    + ", zone=" + device.zoneCodes);
 
-                if (allVenues != null) {
-                    for (String configuredVenueName : configuredVenues) {
-                        for (ActiveVenueModel v : allVenues) {
-                            if (v != null && configuredVenueName.equals(v.venueName)) {
-                                configuredVenueCodes.add(v.venueCode);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // 解析车证的 area 字段
-                Set<String> certVenueCodes = new HashSet<>();
-                if (!TextUtils.isEmpty(areaField)) {
-                    String[] venueCodes = areaField.split(",");
-                    for (String code : venueCodes) {
-                        certVenueCodes.add(code.trim());
-                    }
-                }
-
-                // 找出配置中有但车证没有的场馆
-                boolean containsed = CollUtil.containsAny(configuredVenueCodes, certVenueCodes);
-                if (!containsed) {
-                    return "缺少场馆权限";
-                }
-                //                for (String configCode : configuredVenueCodes) {
-                //                    if (!certVenueCodes.contains(configCode)) {
-                //                        // 将 venueCode 转换为 venueName 显示
-                //                        String venueName = configCode;
-                //                        if (allVenues != null) {
-                //                            for (ActiveVenueModel v : allVenues) {
-                //                                if (v != null && configCode.equals(v.venueCode)) {
-                //                                    venueName = v.venueName != null ? v.venueName : v.venueCode;
-                //                                    break;
-                //                                }
-                //                            }
-                //                        }
-                //                        Log.d(TAG, "缺少场馆权限: " + venueName);
-                //                        return "缺少场馆权限";
-                //                    }
-                //                }
+            // 车证：area=场馆，parkingArea=区域；无分区/分项时传空
+            boolean matched = DevicePermissionHelper.certificateMatchesDevice(
+                    carDTO.area,
+                    null,
+                    carDTO.parkingArea,
+                    null,
+                    device,
+                    true);
+            if (matched) {
+                return "";
             }
-            Set<String> configuredAreas = AppPreferences.getSelectedAreaPermissions(requireContext(), currentActiveId);
-            Log.d(TAG, "设备配置的区域（名称）: " + (configuredAreas != null ? configuredAreas.toString() : "null"));
-            String parkingAreaField = carDTO.parkingArea;  // 区域权限
-            Log.d(TAG, "车证parkingArea字段(区域): " + parkingAreaField);
-            List<CertTypeModel> carCertTypes = basicInfo.getCarCertTypes();
-            Log.d(TAG, "系统总的车证区域: " + new Gson().toJson(carCertTypes));
-            Set<String> collect = new HashSet<>();
-            configuredAreas.stream().forEach(it -> {
-                Optional<CertTypeModel> first = carCertTypes.stream().filter(cert -> StrUtil.equals(cert.dictValue, it)).findFirst();
-                if (first.isPresent()) {
-                    collect.add(first.get().dictCode);
-                }
-            });
-            // 找出配置中有但车证没有的区域
-            String[] areaArray = StrUtil.splitToArray(parkingAreaField, ',');
-            Set<String> userAreas = CollUtil.newHashSet(areaArray);
-            boolean containsed = CollUtil.containsAny(collect, userAreas);
-            if (!containsed) {
-                return "缺少区域权限";
+            if (device.isEmpty()) {
+                return "设备权限未配置";
             }
-            return "";
+            return "缺少通行权限";
         } catch (Exception e) {
             Log.e(TAG, "获取所需权限失败", e);
             return "获取所需权限失败";

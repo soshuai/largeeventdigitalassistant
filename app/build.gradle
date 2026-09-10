@@ -88,4 +88,7 @@ dependencies {
     implementation files('libs\\DeviceAPIver20150204.jar')
     implementation files('libs\\logutil-1.5.1.1.jar')
     implementation files('libs\\UHF67_v3.6.jar')
+    // 身份证 RFID（ZK IDRDemo_Com13_Rfid_SDK_v1.15）
+    implementation files('libs/zkandroidcore.jar')
+    implementation files('libs/zkandroididcardreader_13rfid_v2.1.jar')
 }

@@ -141,10 +141,10 @@ public class PersonCertBindActivity extends AppCompatActivity {
         String personName = etPersonName.getText() != null ? etPersonName.getText().toString().trim() : "";
         String idNumber = etIdNumber.getText() != null ? etIdNumber.getText().toString().trim() : "";
 
-        if (TextUtils.isEmpty(idNumber)) {
-            Toast.makeText(this, "请输入身份证号", Toast.LENGTH_SHORT).show();
-            return;
-        }
+//        if (TextUtils.isEmpty(idNumber)) {
+//            Toast.makeText(this, "请输入身份证号", Toast.LENGTH_SHORT).show();
+//            return;
+//        }
 
         if (TextUtils.isEmpty(chipId)) {
             Toast.makeText(this, "芯片号缺失", Toast.LENGTH_SHORT).show();

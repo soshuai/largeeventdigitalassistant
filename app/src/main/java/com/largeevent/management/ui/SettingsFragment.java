@@ -26,6 +26,7 @@ import com.largeevent.management.data.ActiveInfoMapper;
 import com.largeevent.management.data.ActiveUserParser;
 import com.largeevent.management.data.AppPreferences;
 import com.largeevent.management.data.InitializationRepository;
+import com.largeevent.management.data.ModuleType;
 import com.largeevent.management.network.dto.ActiveInfoDTO;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.EventInfo;
@@ -72,6 +73,7 @@ public class SettingsFragment extends Fragment {
     private Set<String> pendingSelectedCertZones = new HashSet<>();
     private String pendingSelectedLocationId = null;
     private String pendingSelectedZoneId = null;
+    private int pendingModuleType = ModuleType.PERSON;
     
     // 保存当前活动ID用于设备注册
     private String currentActiveIdForSave = null;
@@ -112,14 +114,17 @@ public class SettingsFragment extends Fragment {
         currentEventInfo = repository.getEventInfo();
         
         // 初始化 pending 权限变量，读取当前已保存的权限，避免未进入EventSettingsActivity时被置空
-        // 使用当前选中的活动ID读取权限，确保活动隔离
+        // 使用当前选中的活动ID读取权限，确保活动隔离；位置/分区按人证/车证模块隔离
         String currentActiveId = AppPreferences.getLastActiveId(requireContext());
+        pendingModuleType = AppPreferences.getModuleType(requireContext(), currentActiveId);
         pendingSelectedSessions = new HashSet<>(AppPreferences.getSelectedSessions(requireContext(), currentActiveId));
         pendingSelectedVenues = new HashSet<>(AppPreferences.getSelectedVenuePermissions(requireContext(), currentActiveId));
         pendingSelectedAreas = new HashSet<>(AppPreferences.getSelectedAreaPermissions(requireContext(), currentActiveId));
         pendingSelectedCertZones = new HashSet<>(AppPreferences.getSelectedCertZonePermissions(requireContext(), currentActiveId));
-        pendingSelectedLocationId = AppPreferences.getSelectedLocationId(requireContext(), currentActiveId);
-        pendingSelectedZoneId = AppPreferences.getSelectedZoneId(requireContext(), currentActiveId);
+        pendingSelectedLocationId = AppPreferences.getSelectedLocationId(
+                requireContext(), currentActiveId, pendingModuleType);
+        pendingSelectedZoneId = AppPreferences.getSelectedZoneId(
+                requireContext(), currentActiveId, pendingModuleType);
 
         btnTestConnection.setOnClickListener(v -> testServerConnection());
         btnSaveSetting.setOnClickListener(v -> saveSettings());
@@ -221,13 +226,26 @@ public class SettingsFragment extends Fragment {
             pendingSelectedLocationId = null;
             pendingSelectedZoneId = null;
         } else {
+            pendingModuleType = AppPreferences.getModuleType(requireContext(), selectedActiveId);
             pendingSelectedSessions = new HashSet<>(AppPreferences.getSelectedSessions(requireContext(), selectedActiveId));
             pendingSelectedVenues = new HashSet<>(AppPreferences.getSelectedVenuePermissions(requireContext(), selectedActiveId));
             pendingSelectedAreas = new HashSet<>(AppPreferences.getSelectedAreaPermissions(requireContext(), selectedActiveId));
             pendingSelectedCertZones = new HashSet<>(AppPreferences.getSelectedCertZonePermissions(requireContext(), selectedActiveId));
-            pendingSelectedLocationId = AppPreferences.getSelectedLocationId(requireContext(), selectedActiveId);
-            pendingSelectedZoneId = AppPreferences.getSelectedZoneId(requireContext(), selectedActiveId);
+            pendingSelectedLocationId = AppPreferences.getSelectedLocationId(
+                    requireContext(), selectedActiveId, pendingModuleType);
+            pendingSelectedZoneId = AppPreferences.getSelectedZoneId(
+                    requireContext(), selectedActiveId, pendingModuleType);
         }
+    }
+
+    /** 指定模块是否已选位置+分区 */
+    private boolean isModuleLocationReady(String activeId, int moduleType) {
+        if (TextUtils.isEmpty(activeId)) {
+            return false;
+        }
+        String locationId = AppPreferences.getSelectedLocationId(requireContext(), activeId, moduleType);
+        String zoneId = AppPreferences.getSelectedZoneId(requireContext(), activeId, moduleType);
+        return !TextUtils.isEmpty(locationId) && !TextUtils.isEmpty(zoneId);
     }
 
     private void testServerConnection() {
@@ -298,32 +316,46 @@ public class SettingsFragment extends Fragment {
             AppPreferences.setLastActiveId(requireContext(), selectedActiveId);
         }
 
-        if (TextUtils.isEmpty(pendingSelectedLocationId)
-                || TextUtils.isEmpty(pendingSelectedZoneId)) {
+        String activeIdForSave = !TextUtils.isEmpty(selectedActiveId)
+                ? selectedActiveId
+                : AppPreferences.getLastActiveId(requireContext());
+        // 人证、车证须分别在活动设置中配置位置与分区
+        if (!isModuleLocationReady(activeIdForSave, ModuleType.PERSON)
+                || !isModuleLocationReady(activeIdForSave, ModuleType.VEHICLE)) {
             Toast.makeText(requireContext(),
-                    "请同时在活动设置中选择设备所在位置和设备所在分区（两项均必选）",
-                    Toast.LENGTH_SHORT).show();
+                    "请在活动设置中分别切换「人证」「车证」并各选位置与分区（两项均必选）",
+                    Toast.LENGTH_LONG).show();
             return;
         }
 
-        // 保存权限选择（无论是否为空都要保存，空集合代表全部取消选中）
-        // 使用当前选中的活动ID进行保存，确保活动隔离
-        String activeIdForSave = !TextUtils.isEmpty(selectedActiveId) ? selectedActiveId : AppPreferences.getLastActiveId(requireContext());
         currentActiveIdForSave = activeIdForSave;
+        int moduleType = ModuleType.normalize(pendingModuleType);
+        if (TextUtils.isEmpty(pendingSelectedLocationId)
+                || TextUtils.isEmpty(pendingSelectedZoneId)) {
+            pendingSelectedLocationId = AppPreferences.getSelectedLocationId(
+                    requireContext(), activeIdForSave, moduleType);
+            pendingSelectedZoneId = AppPreferences.getSelectedZoneId(
+                    requireContext(), activeIdForSave, moduleType);
+        }
+
+        // 按模块保存位置/分区；权限走各自 matrixAuth
         AppPreferences.setSelectedSessions(requireContext(), activeIdForSave, pendingSelectedSessions);
-        AppPreferences.setSelectedVenuePermissions(requireContext(), activeIdForSave, pendingSelectedVenues);
-        AppPreferences.setSelectedAreaPermissions(requireContext(), activeIdForSave, pendingSelectedAreas);
-        AppPreferences.setSelectedCertZonePermissions(requireContext(), activeIdForSave, pendingSelectedCertZones);
-        
-        // 保存位置和分区ID（两项同时保存）
-        AppPreferences.setSelectedLocationId(requireContext(), activeIdForSave, pendingSelectedLocationId);
-        AppPreferences.setSelectedZoneId(requireContext(), activeIdForSave, pendingSelectedZoneId);
-        AppPreferences.setDeviceAuthSynced(requireContext(), activeIdForSave,
+        AppPreferences.setSelectedVenuePermissions(requireContext(), activeIdForSave, new HashSet<>());
+        AppPreferences.setSelectedAreaPermissions(requireContext(), activeIdForSave, new HashSet<>());
+        AppPreferences.setSelectedCertZonePermissions(requireContext(), activeIdForSave, new HashSet<>());
+        AppPreferences.setModuleType(requireContext(), activeIdForSave, moduleType);
+        AppPreferences.setSelectedLocationId(requireContext(), activeIdForSave, moduleType,
+                pendingSelectedLocationId);
+        AppPreferences.setSelectedZoneId(requireContext(), activeIdForSave, moduleType,
+                pendingSelectedZoneId);
+        AppPreferences.setDeviceAuthSynced(requireContext(), activeIdForSave, moduleType,
                 pendingSelectedLocationId, pendingSelectedZoneId);
-        AppPreferences.setDevicePermissionConfigured(requireContext(), activeIdForSave,
-                !pendingSelectedVenues.isEmpty()
-                        || !pendingSelectedAreas.isEmpty()
-                        || !pendingSelectedCertZones.isEmpty());
+        AppPreferences.setDevicePermissionConfigured(requireContext(), activeIdForSave, moduleType,
+                AppPreferences.getDeviceMatrixAuthCodes(requireContext(), activeIdForSave, moduleType)
+                        .hasAnyConfigured());
+        // 设备形态保持手持（人证合一规则用）；EqpType 注册已在活动设置按人证/车证分别提交
+        AppPreferences.setEqpType(requireContext(), activeIdForSave,
+                com.largeevent.management.data.PersonVerificationHelper.EQP_HANDHELD);
 
         // 通知HomeFragment更新自动初始化的服务器地址
         notifyHomeFragmentServerUrlChanged(normalized);
@@ -414,7 +446,8 @@ public class SettingsFragment extends Fragment {
 
     private void fetchBasicInfoWithEventCode(String baseUrl, String eventCode) {
         com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
-        retrofit2.Call<ResponseBody> call = apiService.getBasicInfo(eventCode);
+        String eqpId = AppPreferences.ensureDeviceCode(requireContext());
+        retrofit2.Call<ResponseBody> call = apiService.getBasicInfo(eventCode, eqpId);
         
         call.enqueue(new retrofit2.Callback<ResponseBody>() {
             @Override
@@ -580,6 +613,7 @@ public class SettingsFragment extends Fragment {
             pendingSelectedCertZones = certZones != null ? new HashSet<>(certZones) : new HashSet<>();
             pendingSelectedLocationId = locationId;
             pendingSelectedZoneId = zoneId;
+            pendingModuleType = data.getIntExtra("module_type", ModuleType.PERSON);
 
             String activeId = AppPreferences.getLastActiveId(requireContext());
             if (!TextUtils.isEmpty(activeId)) {
@@ -587,15 +621,19 @@ public class SettingsFragment extends Fragment {
                         data.getBooleanExtra("activation_check_enabled", false));
                 AppPreferences.setSelectedSubUnitName(requireContext(), activeId,
                         data.getStringExtra("selected_sub_unit"));
-                String eqpType = data.getStringExtra("eqp_type");
-                if (!TextUtils.isEmpty(eqpType)) {
-                    AppPreferences.setEqpType(requireContext(), activeId, eqpType);
+                AppPreferences.setModuleType(requireContext(), activeId, pendingModuleType);
+                if (!TextUtils.isEmpty(locationId)) {
+                    AppPreferences.setSelectedLocationId(requireContext(), activeId, pendingModuleType, locationId);
                 }
-                AppPreferences.setDevicePermissionConfigured(requireContext(), activeId,
+                if (!TextUtils.isEmpty(zoneId)) {
+                    AppPreferences.setSelectedZoneId(requireContext(), activeId, pendingModuleType, zoneId);
+                }
+                AppPreferences.setDevicePermissionConfigured(requireContext(), activeId, pendingModuleType,
                         data.getBooleanExtra("device_perm_configured", false)
-                                || !pendingSelectedVenues.isEmpty()
-                                || !pendingSelectedAreas.isEmpty()
-                                || !pendingSelectedCertZones.isEmpty());
+                                || AppPreferences.getDeviceMatrixAuthCodes(
+                                requireContext(), activeId, pendingModuleType).hasAnyConfigured());
+                AppPreferences.setEqpType(requireContext(), activeId,
+                        com.largeevent.management.data.PersonVerificationHelper.EQP_HANDHELD);
             }
         }
     }

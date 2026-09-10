@@ -53,8 +53,11 @@ public final class ReceiveCheckPersonBuilder {
         dto.equipmentId = AppPreferences.getDeviceCode(context);
         dto.equipmentName = android.os.Build.MODEL;
 
-        dto.locationId = AppPreferences.getSelectedLocationId(context, activeId);
-        dto.zoneLocationId = AppPreferences.getSelectedZoneId(context, activeId);
+        // 人证核验上报使用人证模块的位置/分区
+        dto.locationId = AppPreferences.getSelectedLocationId(
+                context, activeId, ModuleType.PERSON);
+        dto.zoneLocationId = AppPreferences.getSelectedZoneId(
+                context, activeId, ModuleType.PERSON);
         dto.locationName = resolveLocationName(basicInfo, dto.locationId);
         dto.zoneLocationName = resolveLocationName(basicInfo, dto.zoneLocationId);
 

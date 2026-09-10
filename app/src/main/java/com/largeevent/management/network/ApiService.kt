@@ -22,10 +22,14 @@ interface ApiService {
     /**
      * 获取基础信息
      * @param activityId 活动ID（必填）
+     * @param eqpId 设备ID（必填）
      * @return 基础信息
      */
     @GET("androidNew/api/getBasicInfo")
-    fun getBasicInfo(@Query("activityId") activityId: String?): Call<ResponseBody?>?
+    fun getBasicInfo(
+        @Query("activityId") activityId: String?,
+        @Query("eqpId") eqpId: String?
+    ): Call<ResponseBody?>?
 
     /**
      * 获取设备通行权限信息
@@ -47,6 +51,17 @@ interface ApiService {
     @GET("androidNew/api/getActiveUser")
     fun getActiveUser(@Query("activeId") activeId: String?, @Query("chipid") chipid: String?):
             Call<ApiResponse<MutableList<ActiveUserBaseDTO?>?>?>?
+
+    /**
+     * 根据证件号码查询证件信息（仅回显，不核验上传）
+     * @param idNumber 证件号码
+     * @param idType 证件类型（如身份证 169）
+     */
+    @GET("androidNew/api/getActiveUserByIdNumber")
+    fun getActiveUserByIdNumber(
+        @Query("idNumber") idNumber: String?,
+        @Query("idType") idType: String?
+    ): Call<ApiResponse<MutableList<ActiveUserBaseDTO?>?>?>?
 
     /**
      * 获取活动车证详情

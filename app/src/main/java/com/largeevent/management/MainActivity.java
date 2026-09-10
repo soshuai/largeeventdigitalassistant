@@ -47,10 +47,10 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         
         // 检查软件使用时间限制（1周）
-        if (!checkAppTimeLimit()) {
-            showExpiredDialog();
-            return;
-        }
+//        if (!checkAppTimeLimit()) {
+//            showExpiredDialog();
+//            return;
+//        }
         
         setContentView(R.layout.activity_main);
 

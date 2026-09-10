@@ -260,7 +260,9 @@ class BasicInfo(
         @JvmField val locationDesc: String?,
         @JvmField val activityId: String?,
         @JvmField val eqpId: String?,
-        @JvmField val activityCode: String?
+        @JvmField val activityCode: String?,
+        /** 模块类型：1 人证，2 车证；缺省视为通用 */
+        @JvmField val moduleType: Int = 0
     ) : Serializable
 
     class MatrixAuthInfo(

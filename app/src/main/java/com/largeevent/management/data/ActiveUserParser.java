@@ -216,13 +216,17 @@ public class ActiveUserParser {
         }
         normalizeActiveUserDto(dto);
 
-        String chipId = firstNonEmpty(dto.chipid, dto.tagNo1, fallbackChipId);
-        if (TextUtils.isEmpty(chipId)) {
+        // 按证件号查询时接口常返回空 chipId，不能因此判定无证件
+        String idNumber = firstNonEmpty(dto.identityDocumentNumber, dto.idNumber);
+        String chipId = firstNonEmpty(dto.chipid, dto.tagNo1, fallbackChipId, dto.certId, idNumber);
+        if (TextUtils.isEmpty(chipId)
+                && TextUtils.isEmpty(dto.certId)
+                && TextUtils.isEmpty(idNumber)
+                && TextUtils.isEmpty(dto.chineseName)) {
             return null;
         }
 
         String idTypeRaw = firstNonEmpty(dto.identityDocumentType, dto.idType);
-        String idNumber = firstNonEmpty(dto.identityDocumentNumber, dto.idNumber);
         String idTypeDisplay = resolveIdentityDocumentTypeLabel(idTypeRaw);
 
         CertificateInfo.Builder builder = new CertificateInfo.Builder()

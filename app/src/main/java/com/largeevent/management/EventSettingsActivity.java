@@ -25,7 +25,7 @@ import com.largeevent.management.data.AppPreferences;
 import com.largeevent.management.data.InitializationRepository;
 import com.largeevent.management.data.DevicePermissionHelper;
 import com.largeevent.management.data.MatrixAuthSelectionHelper;
-import com.largeevent.management.data.PersonVerificationHelper;
+import com.largeevent.management.data.ModuleType;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.BasicInfo.LocationInfo;
 import com.largeevent.management.model.BasicInfo.VenueInfo;
@@ -79,21 +79,26 @@ public class EventSettingsActivity extends AppCompatActivity {
     private LinearLayout layoutSyncDetails;
 
     private final List<CheckBox> sessionCheckboxes = new ArrayList<>();
-    private final List<CheckBox> venueCheckboxes = new ArrayList<>();
-    private final List<CheckBox> partitionCheckboxes = new ArrayList<>();
-    private final List<CheckBox> certZoneCheckboxes = new ArrayList<>();
+    private final List<TextView> venuePermissionChips = new ArrayList<>();
+    private final List<TextView> partitionPermissionChips = new ArrayList<>();
+    private final List<TextView> certZonePermissionChips = new ArrayList<>();
 
     private EventInfo currentEventInfo;
     private String currentActiveId;
     private String selectedLocationId = null; // 保存选中的位置ID
     private String selectedZoneId = null; // 保存选中的分区ID
+    /** 当前编辑的业务模块：1 人证 / 2 车证 */
+    private int currentModuleType = ModuleType.PERSON;
     
-    // 用于存储位置和分区数据
-    private List<LocationInfo> locationList = new ArrayList<>(); // locationType="cg" 的数据
-    private List<LocationInfo> zoneList = new ArrayList<>(); // locationType="fq" 的数据
+    // 用于存储位置和分区数据（已按当前模块过滤）
+    private List<LocationInfo> locationList = new ArrayList<>(); // locationType="cg"
+    private List<LocationInfo> zoneList = new ArrayList<>(); // locationType="fq"
+    /** getBasicInfo 原始 location 列表 */
+    private List<LocationInfo> allLocationInfos = new ArrayList<>();
 
     private boolean suppressSpinnerCallback = false;
     private boolean isRegistering = false;
+    private boolean suppressModuleCallback = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -207,68 +212,71 @@ public class EventSettingsActivity extends AppCompatActivity {
         containerVenuePermissions.removeAllViews();
         containerPartitionPermissions.removeAllViews();
         containerCertZonePermissions.removeAllViews();
-        venueCheckboxes.clear();
-        partitionCheckboxes.clear();
-        certZoneCheckboxes.clear();
+        venuePermissionChips.clear();
+        partitionPermissionChips.clear();
+        certZonePermissionChips.clear();
 
-        // 读取上次保存的权限选择（仅用于显示，按活动隔离）
-        Set<String> savedVenues = AppPreferences.getSelectedVenuePermissions(this, currentActiveId);
-        Set<String> savedPartitions = AppPreferences.getSelectedAreaPermissions(this, currentActiveId);
-        Set<String> savedCertZones = AppPreferences.getSelectedCertZonePermissions(this, currentActiveId);
-
-        // 直接从 BasicInfo 中获取数据
         BasicInfo basicInfo = repository.getBasicInfo();
         if (basicInfo != null) {
-            // 清空之前的数据
-            locationList.clear();
-            zoneList.clear();
-            
-            // 从 locationInfoList 获取位置和分区数据
+            allLocationInfos.clear();
             if (basicInfo.getLocationInfoList() != null) {
-                for (BasicInfo.LocationInfo locationInfo : basicInfo.getLocationInfoList()) {
-                    if (locationInfo != null && !TextUtils.isEmpty(locationInfo.locationName) && !TextUtils.isEmpty(locationInfo.locationId)) {
-                        String locationType = locationInfo.locationType;
-                        if ("cg".equals(locationType)) {
-                            // 场馆类型 - 用于位置选择
-                            locationList.add(locationInfo);
-                        } else if ("fq".equals(locationType)) {
-                            // 区域类型 - 用于分区选择
-                            zoneList.add(locationInfo);
-                        }
-                    }
-                }
+                allLocationInfos.addAll(basicInfo.getLocationInfoList());
             }
 
-            // 设置位置/分区下拉（抑制初始化回调，避免重复拉取设备权限）
+            if (!TextUtils.isEmpty(currentActiveId)) {
+                currentModuleType = AppPreferences.getModuleType(this, currentActiveId);
+            }
+
+            rebuildLocationListsForModule();
+
             suppressSpinnerCallback = true;
+            suppressModuleCallback = true;
+            setupModuleTypeSpinner();
             setupLocationSpinner();
             setupZoneSpinner();
+            suppressModuleCallback = false;
             suppressSpinnerCallback = false;
 
-            // 场馆权限（venueInfoList）、分区权限（personCertAreaList）、区域权限（personCertZoneList）
-            populateVenuePermissions(basicInfo, savedVenues);
-            populateDictPermissions(basicInfo.getPersonCertAreaList(), savedPartitions,
-                    containerPartitionPermissions, partitionCheckboxes);
-            populateDictPermissions(basicInfo.getPersonCertZoneList(), savedCertZones,
-                    containerCertZonePermissions, certZoneCheckboxes);
+            populateVenuePermissions(basicInfo, null);
+            populateDictPermissions(basicInfo.getPersonCertAreaList(), null,
+                    containerPartitionPermissions, partitionPermissionChips);
+            populateDictPermissions(basicInfo.getPersonCertZoneList(), null,
+                    containerCertZonePermissions, certZonePermissionChips);
+            highlightMatrixAuthPermissions();
 
-            setupEqpTypeSpinner();
-            // 子活动、证件激活校验入口暂隐藏，逻辑保留默认：不筛选子活动、不启用激活校验
             if (switchActivationCheck != null) {
                 switchActivationCheck.setChecked(false);
             }
         } else {
-            // 如果没有 BasicInfo 数据，则使用 EventInfo 的逻辑（向后兼容）
-            if (currentEventInfo != null) {
-                // 场馆权限
-                if (currentEventInfo.getVenuePermissions() != null) {
-                    for (String permission : currentEventInfo.getVenuePermissions()) {
-                        CheckBox checkBox = createCheckBox(permission, null);
-                        checkBox.setChecked(savedVenues.contains(permission));
-                        containerVenuePermissions.addView(checkBox);
-                        venueCheckboxes.add(checkBox);
-                    }
+            if (currentEventInfo != null && currentEventInfo.getVenuePermissions() != null) {
+                for (String permission : currentEventInfo.getVenuePermissions()) {
+                    TextView chip = createPermissionChip(permission, null);
+                    MatrixAuthSelectionHelper.setChipSelected(chip, false);
+                    containerVenuePermissions.addView(chip);
+                    venuePermissionChips.add(chip);
                 }
+            }
+        }
+    }
+
+    /** 按当前人证/车证模块过滤位置与分区 */
+    private void rebuildLocationListsForModule() {
+        locationList.clear();
+        zoneList.clear();
+        for (LocationInfo locationInfo : allLocationInfos) {
+            if (locationInfo == null
+                    || TextUtils.isEmpty(locationInfo.locationName)
+                    || TextUtils.isEmpty(locationInfo.locationId)) {
+                continue;
+            }
+            if (!ModuleType.matchesLocation(locationInfo.moduleType, currentModuleType)) {
+                continue;
+            }
+            String locationType = locationInfo.locationType;
+            if ("cg".equals(locationType)) {
+                locationList.add(locationInfo);
+            } else if ("fq".equals(locationType)) {
+                zoneList.add(locationInfo);
             }
         }
     }
@@ -316,20 +324,9 @@ public class EventSettingsActivity extends AppCompatActivity {
         });
     }
 
-    private void setupEqpTypeSpinner() {
-        final String[] types = {
-                PersonVerificationHelper.EQP_HANDHELD,
-                PersonVerificationHelper.EQP_CHANNEL,
-                PersonVerificationHelper.EQP_GATE
-        };
-        String saved = AppPreferences.getEqpType(this, currentActiveId);
-        int selectedIndex = 0;
-        for (int i = 0; i < types.length; i++) {
-            if (types[i].equals(saved)) {
-                selectedIndex = i;
-                break;
-            }
-        }
+    private void setupModuleTypeSpinner() {
+        final String[] types = {ModuleType.LABEL_PERSON, ModuleType.LABEL_VEHICLE};
+        int selectedIndex = currentModuleType == ModuleType.VEHICLE ? 1 : 0;
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, types);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -339,7 +336,31 @@ public class EventSettingsActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view,
                                        int position, long id) {
-                AppPreferences.setEqpType(EventSettingsActivity.this, currentActiveId, types[position]);
+                if (suppressModuleCallback) {
+                    return;
+                }
+                int newModule = position == 1 ? ModuleType.VEHICLE : ModuleType.PERSON;
+                if (newModule == currentModuleType) {
+                    return;
+                }
+                // 切换前先落盘当前模块的位置/分区
+                persistCurrentModuleSelection();
+                currentModuleType = newModule;
+                if (!TextUtils.isEmpty(currentActiveId)) {
+                    AppPreferences.setModuleType(EventSettingsActivity.this, currentActiveId, currentModuleType);
+                }
+                rebuildLocationListsForModule();
+                suppressSpinnerCallback = true;
+                setupLocationSpinner();
+                setupZoneSpinner();
+                suppressSpinnerCallback = false;
+                // 先按当前模块缓存刷新勾选，再决定是否重新拉权限
+                highlightMatrixAuthPermissions();
+                onLocationOrZoneChanged();
+                Toast.makeText(EventSettingsActivity.this,
+                        "已切换至" + ModuleType.toLabel(currentModuleType)
+                                + "（位置/分区与通行权限按模块独立）",
+                        Toast.LENGTH_SHORT).show();
             }
 
             @Override
@@ -348,30 +369,46 @@ public class EventSettingsActivity extends AppCompatActivity {
         });
     }
 
+    private void persistCurrentModuleSelection() {
+        if (TextUtils.isEmpty(currentActiveId)) {
+            return;
+        }
+        AppPreferences.setModuleType(this, currentActiveId, currentModuleType);
+        if (!TextUtils.isEmpty(selectedLocationId)) {
+            AppPreferences.setSelectedLocationId(this, currentActiveId, currentModuleType, selectedLocationId);
+        }
+        if (!TextUtils.isEmpty(selectedZoneId)) {
+            AppPreferences.setSelectedZoneId(this, currentActiveId, currentModuleType, selectedZoneId);
+        }
+    }
+
     /**
      * 设置位置下拉选择（场馆类型 locationType="cg"）
      */
     private void setupLocationSpinner() {
-        // 读取上次保存的位置ID
-        String savedLocationId = AppPreferences.getSelectedLocationId(this, currentActiveId);
-        selectedLocationId = savedLocationId;
+        String savedLocationId = AppPreferences.getSelectedLocationId(
+                this, currentActiveId, currentModuleType);
 
         List<String> locationNames = new ArrayList<>();
         locationNames.add("请选择设备所在位置");
-        
+
         int selectedIndex = 0;
         for (int i = 0; i < locationList.size(); i++) {
             LocationInfo location = locationList.get(i);
             locationNames.add(location.locationName);
-            if (location.locationId.equals(savedLocationId)) {
-                selectedIndex = i + 1; // +1 是因为第一个是提示项
+            if (TextUtils.equals(location.locationId, savedLocationId)) {
+                selectedIndex = i + 1;
             }
         }
+        // 当前模块列表里找不到已保存项时，以 Spinner 实际展示为准
+        selectedLocationId = selectedIndex > 0
+                ? locationList.get(selectedIndex - 1).locationId
+                : null;
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, locationNames);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerLocation.setAdapter(adapter);
-        spinnerLocation.setSelection(selectedIndex);
+        spinnerLocation.setSelection(selectedIndex, false);
 
         android.widget.AdapterView.OnItemSelectedListener locationListener =
                 new android.widget.AdapterView.OnItemSelectedListener() {
@@ -387,6 +424,7 @@ public class EventSettingsActivity extends AppCompatActivity {
                             LocationInfo location = locationList.get(position - 1);
                             selectedLocationId = location.locationId;
                         }
+                        persistCurrentModuleSelection();
                         onLocationOrZoneChanged();
                     }
 
@@ -405,26 +443,28 @@ public class EventSettingsActivity extends AppCompatActivity {
      * 设置分区下拉选择（区域类型 locationType="fq"）
      */
     private void setupZoneSpinner() {
-        // 读取上次保存的分区ID
-        String savedZoneId = AppPreferences.getSelectedZoneId(this, currentActiveId);
-        selectedZoneId = savedZoneId;
+        String savedZoneId = AppPreferences.getSelectedZoneId(
+                this, currentActiveId, currentModuleType);
 
         List<String> zoneNames = new ArrayList<>();
         zoneNames.add("请选择设备所在分区");
-        
+
         int selectedIndex = 0;
         for (int i = 0; i < zoneList.size(); i++) {
             LocationInfo zone = zoneList.get(i);
             zoneNames.add(zone.locationName);
-            if (zone.locationId.equals(savedZoneId)) {
-                selectedIndex = i + 1; // +1 是因为第一个是提示项
+            if (TextUtils.equals(zone.locationId, savedZoneId)) {
+                selectedIndex = i + 1;
             }
         }
+        selectedZoneId = selectedIndex > 0
+                ? zoneList.get(selectedIndex - 1).locationId
+                : null;
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, zoneNames);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerZone.setAdapter(adapter);
-        spinnerZone.setSelection(selectedIndex);
+        spinnerZone.setSelection(selectedIndex, false);
 
         android.widget.AdapterView.OnItemSelectedListener zoneListener =
                 new android.widget.AdapterView.OnItemSelectedListener() {
@@ -440,6 +480,7 @@ public class EventSettingsActivity extends AppCompatActivity {
                             LocationInfo zone = zoneList.get(position - 1);
                             selectedZoneId = zone.locationId;
                         }
+                        persistCurrentModuleSelection();
                         onLocationOrZoneChanged();
                     }
 
@@ -455,8 +496,7 @@ public class EventSettingsActivity extends AppCompatActivity {
     }
 
     /**
-     * 位置与分区均选择后注册设备并拉取权限。
-     * 若该活动已在「保存设置」后同步过相同位置+分区，则不再请求（换活动或改位置/分区后会重新拉取）。
+     * 位置与分区均选择后，按当前模块注册设备并拉取权限。
      */
     private void onLocationOrZoneChanged() {
         if (TextUtils.isEmpty(selectedLocationId) || TextUtils.isEmpty(selectedZoneId)) {
@@ -466,8 +506,9 @@ public class EventSettingsActivity extends AppCompatActivity {
             return;
         }
         if (AppPreferences.isDeviceAuthSynced(
-                this, currentActiveId, selectedLocationId, selectedZoneId)) {
-            Log.d(TAG, "设备权限已同步，跳过注册与 getMatrixAuthInfoList");
+                this, currentActiveId, currentModuleType, selectedLocationId, selectedZoneId)) {
+            Log.d(TAG, "设备权限已同步，跳过注册 module=" + currentModuleType);
+            highlightMatrixAuthPermissions();
             return;
         }
         registerEquipmentAndLoadMatrixAuth();
@@ -478,25 +519,37 @@ public class EventSettingsActivity extends AppCompatActivity {
      */
     private void populateVenuePermissions(BasicInfo basicInfo, Set<String> savedVenues) {
         populateDictPermissions(basicInfo.getVenueInfoList(), savedVenues,
-                containerVenuePermissions, venueCheckboxes);
+                containerVenuePermissions, venuePermissionChips);
     }
 
     /**
-     * 填充字典类权限选项（场馆/分区/区域）
+     * 填充字典类权限选项（场馆/分区/区域）——只读芯片展示
      */
     private void populateDictPermissions(List<VenueInfo> dictList, Set<String> savedSelections,
-                                         FlowLayout container, List<CheckBox> checkboxList) {
+                                         FlowLayout container, List<TextView> chipList) {
         if (dictList == null || dictList.isEmpty()) {
             return;
         }
         for (VenueInfo item : dictList) {
             if (item != null && !TextUtils.isEmpty(item.dictValue)) {
-                CheckBox checkBox = createCheckBox(item.dictValue, item.dictCode);
-                checkBox.setChecked(savedSelections.contains(item.dictValue));
-                container.addView(checkBox);
-                checkboxList.add(checkBox);
+                TextView chip = createPermissionChip(item.dictValue, item.dictCode);
+                MatrixAuthSelectionHelper.setChipSelected(chip, false);
+                container.addView(chip);
+                chipList.add(chip);
             }
         }
+    }
+
+    /** 用当前模块已缓存的 matrixAuth 勾选展示（仍不可手动改） */
+    private void highlightMatrixAuthPermissions() {
+        DevicePermissionHelper.PermissionSets sets = AppPreferences.getDeviceMatrixAuthCodes(
+                this, currentActiveId, currentModuleType);
+        MatrixAuthSelectionHelper.applyPermissionSets(
+                venuePermissionChips, partitionPermissionChips, certZonePermissionChips, sets);
+        Log.d(TAG, "highlightMatrixAuth module=" + currentModuleType
+                + " venue=" + sets.venueCodes
+                + " partition=" + sets.partitionCodes
+                + " zone=" + sets.zoneCodes);
     }
 
     private void registerEquipmentAndLoadMatrixAuth() {
@@ -507,10 +560,13 @@ public class EventSettingsActivity extends AppCompatActivity {
         }
 
         isRegistering = true;
-        Toast.makeText(this, "正在注册设备并获取权限...", Toast.LENGTH_SHORT).show();
+        final int moduleForRequest = currentModuleType;
+        Toast.makeText(this,
+                "正在注册" + ModuleType.toLabel(moduleForRequest) + "设备并获取权限...",
+                Toast.LENGTH_SHORT).show();
 
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        EquipmentRegisterDTO dto = buildEquipmentRegisterDTO(eqpId);
+        EquipmentRegisterDTO dto = buildEquipmentRegisterDTO(eqpId, moduleForRequest);
 
         apiService.registerEquipment(dto).enqueue(new retrofit2.Callback<ResponseBody>() {
             @Override
@@ -519,22 +575,23 @@ public class EventSettingsActivity extends AppCompatActivity {
                 if (!response.isSuccessful()) {
                     isRegistering = false;
                     Toast.makeText(EventSettingsActivity.this,
-                            "设备注册失败", Toast.LENGTH_SHORT).show();
+                            ModuleType.toLabel(moduleForRequest) + "设备注册失败", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                fetchMatrixAuthInfo(eqpId);
+                fetchMatrixAuthInfo(eqpId, moduleForRequest);
             }
 
             @Override
             public void onFailure(@NonNull retrofit2.Call<ResponseBody> call, @NonNull Throwable t) {
                 isRegistering = false;
                 Toast.makeText(EventSettingsActivity.this,
-                        "设备注册失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
+                        ModuleType.toLabel(moduleForRequest) + "设备注册失败：" + t.getMessage(),
+                        Toast.LENGTH_SHORT).show();
             }
         });
     }
 
-    private void fetchMatrixAuthInfo(String eqpId) {
+    private void fetchMatrixAuthInfo(String eqpId, int moduleType) {
         ApiService apiService = NetworkManager.getInstance().getApiService();
         apiService.getMatrixAuthInfoList(currentActiveId, eqpId)
                 .enqueue(new retrofit2.Callback<ApiResponse<java.util.List<MatrixAuthInfoDTO>>>() {
@@ -558,14 +615,32 @@ public class EventSettingsActivity extends AppCompatActivity {
                         DevicePermissionHelper.PermissionSets sets =
                                 DevicePermissionHelper.fromMatrixAuthDtoList(authList);
                         AppPreferences.setDeviceMatrixAuthCodes(
-                                EventSettingsActivity.this, currentActiveId, sets);
+                                EventSettingsActivity.this, currentActiveId, moduleType, sets);
                         AppPreferences.setDevicePermissionConfigured(
-                                EventSettingsActivity.this, currentActiveId, sets.hasAnyConfigured());
-                        MatrixAuthSelectionHelper.applyMatrixAuthToCheckboxes(
-                                authList, venueCheckboxes, partitionCheckboxes, certZoneCheckboxes);
-                        appendMissingVenueCheckboxes(authList);
+                                EventSettingsActivity.this, currentActiveId, moduleType,
+                                sets.hasAnyConfigured());
+                        if (!TextUtils.isEmpty(selectedLocationId) && !TextUtils.isEmpty(selectedZoneId)) {
+                            AppPreferences.setDeviceAuthSynced(
+                                    EventSettingsActivity.this, currentActiveId, moduleType,
+                                    selectedLocationId, selectedZoneId);
+                        }
+                        if (moduleType == currentModuleType) {
+                            // 字典外场馆也补进列表，保证能勾选展示
+                            appendMissingVenueCheckboxes(authList);
+                            MatrixAuthSelectionHelper.applyMatrixAuthToCheckboxes(
+                                    authList,
+                                    venuePermissionChips,
+                                    partitionPermissionChips,
+                                    certZonePermissionChips);
+                            Log.d(TAG, "matrixAuth applied module=" + moduleType
+                                    + " size=" + (authList != null ? authList.size() : 0)
+                                    + " venue=" + sets.venueCodes
+                                    + " partition=" + sets.partitionCodes
+                                    + " zone=" + sets.zoneCodes);
+                        }
                         Toast.makeText(EventSettingsActivity.this,
-                                "已加载后台设备权限，可按需调整", Toast.LENGTH_SHORT).show();
+                                "已加载" + ModuleType.toLabel(moduleType) + "通行权限",
+                                Toast.LENGTH_SHORT).show();
                     }
 
                     @Override
@@ -585,7 +660,13 @@ public class EventSettingsActivity extends AppCompatActivity {
         if (authList == null) {
             return;
         }
-        java.util.Set<String> dictCodes = new java.util.HashSet<>();
+        java.util.Set<String> existingCodes = new java.util.HashSet<>();
+        for (TextView chip : venuePermissionChips) {
+            if (chip != null && chip.getTag() != null) {
+                existingCodes.add(String.valueOf(chip.getTag()).trim());
+            }
+        }
+        java.util.Set<String> dictCodes = new java.util.HashSet<>(existingCodes);
         BasicInfo basicInfo = repository.getBasicInfo();
         if (basicInfo != null && basicInfo.getVenueInfoList() != null) {
             for (BasicInfo.VenueInfo v : basicInfo.getVenueInfoList()) {
@@ -597,14 +678,17 @@ public class EventSettingsActivity extends AppCompatActivity {
         java.util.Map<String, String> missing =
                 MatrixAuthSelectionHelper.collectVenueCodesNotInDict(authList, dictCodes);
         for (java.util.Map.Entry<String, String> entry : missing.entrySet()) {
-            CheckBox checkBox = createCheckBox(entry.getValue(), entry.getKey());
-            checkBox.setChecked(true);
-            containerVenuePermissions.addView(checkBox);
-            venueCheckboxes.add(checkBox);
+            if (existingCodes.contains(entry.getKey())) {
+                continue;
+            }
+            TextView chip = createPermissionChip(entry.getValue(), entry.getKey());
+            MatrixAuthSelectionHelper.setChipSelected(chip, true);
+            containerVenuePermissions.addView(chip);
+            venuePermissionChips.add(chip);
         }
     }
 
-    private EquipmentRegisterDTO buildEquipmentRegisterDTO(String eqpId) {
+    private EquipmentRegisterDTO buildEquipmentRegisterDTO(String eqpId, int moduleType) {
         EquipmentRegisterDTO dto = new EquipmentRegisterDTO();
         dto.accountNumber = "";
         dto.activityId = currentActiveId;
@@ -617,21 +701,17 @@ public class EventSettingsActivity extends AppCompatActivity {
         dto.eqpID = eqpId;
         dto.eqpIP = getDeviceIpAddress();
         dto.eqpModel = android.os.Build.MODEL;
-        dto.eqpName = "手持设备1";
+        dto.eqpName = "手持设备-" + ModuleType.toLabel(moduleType);
         dto.eqpState = 0;
-        dto.eqpType = AppPreferences.getEqpType(this, currentActiveId);
+        // 后台约定：人证 / 车证 分开注册
+        dto.eqpType = ModuleType.toLabel(moduleType);
         dto.locationID = selectedLocationId;
         dto.zoneLocationID = selectedZoneId;
         return dto;
     }
 
     private String ensureDeviceCode() {
-        String code = AppPreferences.getDeviceCode(this);
-        if (TextUtils.isEmpty(code)) {
-            code = "DEV_" + System.currentTimeMillis();
-            AppPreferences.setDeviceCode(this, code);
-        }
-        return code;
+        return AppPreferences.ensureDeviceCode(this);
     }
 
     private String getDeviceIpAddress() {
@@ -665,13 +745,36 @@ public class EventSettingsActivity extends AppCompatActivity {
         }
         checkBox.setTextColor(0xFF4A4F63);
         checkBox.setTextSize(14f);
-        // 使用 MarginLayoutParams 适配 FlowLayout
+        checkBox.setClickable(false);
+        checkBox.setFocusable(false);
         ViewGroup.MarginLayoutParams params = new ViewGroup.MarginLayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         params.rightMargin = dpToPx(8);
         params.bottomMargin = dpToPx(8);
         checkBox.setLayoutParams(params);
         return checkBox;
+    }
+
+    /** 权限列表芯片：选中为蓝底白字，不依赖系统勾选框渲染 */
+    private TextView createPermissionChip(String text, String dictCode) {
+        TextView chip = new TextView(this);
+        chip.setText(text);
+        if (!TextUtils.isEmpty(dictCode)) {
+            chip.setTag(dictCode);
+        }
+        chip.setTextSize(14f);
+        chip.setClickable(false);
+        chip.setFocusable(false);
+        int padH = dpToPx(10);
+        int padV = dpToPx(6);
+        chip.setPadding(padH, padV, padH, padV);
+        MatrixAuthSelectionHelper.setChipSelected(chip, false);
+        ViewGroup.MarginLayoutParams params = new ViewGroup.MarginLayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.rightMargin = dpToPx(8);
+        params.bottomMargin = dpToPx(8);
+        chip.setLayoutParams(params);
+        return chip;
     }
 
     private int dpToPx(int dp) {
@@ -696,22 +799,32 @@ public class EventSettingsActivity extends AppCompatActivity {
      * 获取当前选中的权限
      */
     private Set<String> getCurrentSelectedVenuePermissions() {
-        return getCheckedTexts(venueCheckboxes);
+        return getSelectedChipTexts(venuePermissionChips);
     }
 
     private Set<String> getCurrentSelectedPartitionPermissions() {
-        return getCheckedTexts(partitionCheckboxes);
+        return getSelectedChipTexts(partitionPermissionChips);
     }
 
     private Set<String> getCurrentSelectedCertZonePermissions() {
-        return getCheckedTexts(certZoneCheckboxes);
+        return getSelectedChipTexts(certZonePermissionChips);
     }
 
     private Set<String> getCheckedTexts(List<CheckBox> checkboxes) {
         Set<String> selected = new java.util.HashSet<>();
         for (CheckBox cb : checkboxes) {
-            if (cb.isChecked()) {
+            if (cb != null && cb.isChecked()) {
                 selected.add(cb.getText().toString());
+            }
+        }
+        return selected;
+    }
+
+    private Set<String> getSelectedChipTexts(List<TextView> chips) {
+        Set<String> selected = new java.util.HashSet<>();
+        for (TextView chip : chips) {
+            if (chip != null && chip.isSelected()) {
+                selected.add(chip.getText().toString());
             }
         }
         return selected;
@@ -732,26 +845,27 @@ public class EventSettingsActivity extends AppCompatActivity {
     private void returnResultAndFinish() {
         if (TextUtils.isEmpty(selectedLocationId) || TextUtils.isEmpty(selectedZoneId)) {
             Toast.makeText(this,
-                    "请同时选择设备所在位置和设备所在分区（两项均必选）",
+                    "请同时选择" + ModuleType.toLabel(currentModuleType)
+                            + "的设备所在位置和设备所在分区（两项均必选）",
                     Toast.LENGTH_SHORT).show();
             return;
         }
 
+        persistCurrentModuleSelection();
+
         Intent result = new Intent();
         result.putStringArrayListExtra("selected_sessions", new ArrayList<>(getCurrentSelectedSessions()));
-        result.putStringArrayListExtra("selected_venues", new ArrayList<>(getCurrentSelectedVenuePermissions()));
-        result.putStringArrayListExtra("selected_areas", new ArrayList<>(getCurrentSelectedPartitionPermissions()));
-        result.putStringArrayListExtra("selected_cert_zones", new ArrayList<>(getCurrentSelectedCertZonePermissions()));
+        result.putStringArrayListExtra("selected_venues", new ArrayList<String>());
+        result.putStringArrayListExtra("selected_areas", new ArrayList<String>());
+        result.putStringArrayListExtra("selected_cert_zones", new ArrayList<String>());
         result.putExtra("selected_location_id", selectedLocationId);
         result.putExtra("selected_zone_id", selectedZoneId);
+        result.putExtra("module_type", currentModuleType);
+        result.putExtra("eqp_type", ModuleType.toLabel(currentModuleType));
         result.putExtra("activation_check_enabled", false);
         result.putExtra("selected_sub_unit", (String) null);
-        if (spinnerEqpType != null && spinnerEqpType.getSelectedItem() != null) {
-            result.putExtra("eqp_type", spinnerEqpType.getSelectedItem().toString());
-        }
-        boolean permConfigured = !getCurrentSelectedVenuePermissions().isEmpty()
-                || !getCurrentSelectedPartitionPermissions().isEmpty()
-                || !getCurrentSelectedCertZonePermissions().isEmpty();
+        boolean permConfigured = AppPreferences.isDevicePermissionConfigured(
+                this, currentActiveId, currentModuleType);
         result.putExtra("device_perm_configured", permConfigured);
         setResult(RESULT_OK, result);
         super.onBackPressed();
@@ -969,9 +1083,10 @@ public class EventSettingsActivity extends AppCompatActivity {
             return;
         }
 
-        // 调用接口获取该活动的基础信息
+        // 调用接口获取该活动的基础信息（需传设备 id）
+        String eqpId = ensureDeviceCode();
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        retrofit2.Call<ResponseBody> call = apiService.getBasicInfo(eventCode);
+        retrofit2.Call<ResponseBody> call = apiService.getBasicInfo(eventCode, eqpId);
 
         call.enqueue(new retrofit2.Callback<ResponseBody>() {
             @Override

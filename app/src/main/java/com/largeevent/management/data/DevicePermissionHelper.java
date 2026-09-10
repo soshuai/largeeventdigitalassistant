@@ -57,23 +57,27 @@ public final class DevicePermissionHelper {
     }
 
     /**
-     * 优先从设置页已保存的勾选解析（dictValue 会映射为 dictCode），
-     * 若未保存则回退到 getBasicInfo 中的 matrixAuthInfoList。
+     * 解析设备通行权限：按人证/车证模块取 getMatrixAuthInfoList 缓存，
+     * 再回退 getBasicInfo.matrixAuthInfoList。
      */
     public static PermissionSets resolveDevicePermissions(
-            Context context, String activeId, BasicInfo basicInfo) {
-        PermissionSets fromPrefs = fromSavedPreferences(context, activeId, basicInfo);
-        if (!fromPrefs.isEmpty()) {
-            return fromPrefs;
-        }
-        PermissionSets cached = AppPreferences.getDeviceMatrixAuthCodes(context, activeId);
-        if (!cached.isEmpty()) {
-            return cached;
+            Context context, String activeId, BasicInfo basicInfo, int moduleType) {
+        int module = ModuleType.normalize(moduleType);
+        if (!TextUtils.isEmpty(activeId)) {
+            PermissionSets cached = AppPreferences.getDeviceMatrixAuthCodes(context, activeId, module);
+            if (!cached.isEmpty()) {
+                return cached;
+            }
         }
         if (basicInfo != null) {
             return fromMatrixAuthInfoList(basicInfo.getMatrixAuthInfoList());
         }
         return new PermissionSets();
+    }
+
+    public static PermissionSets resolveDevicePermissions(
+            Context context, String activeId, BasicInfo basicInfo) {
+        return resolveDevicePermissions(context, activeId, basicInfo, ModuleType.PERSON);
     }
 
     /** 从 getMatrixAuthInfoList 接口数据解析设备权限 code 集合 */
@@ -86,21 +90,27 @@ public final class DevicePermissionHelper {
             if (auth == null) {
                 continue;
             }
-            if (!TextUtils.isEmpty(auth.venue)) {
-                sets.venueCodes.add(auth.venue.trim());
-            }
-            if (!TextUtils.isEmpty(auth.sportProject)) {
-                sets.sportCodes.add(auth.sportProject.trim());
-            }
+            addPrivilegeTokens(sets.venueCodes, auth.venue);
+            addPrivilegeTokens(sets.venueCodes, auth.venueVal);
+            addPrivilegeTokens(sets.sportCodes, auth.sportProject);
+            addPrivilegeTokens(sets.sportCodes, auth.sportProjectVal);
             // 后台数据：venueArea=红/白/蓝(分区)，venuePartition=1~9(区域)
-            if (!TextUtils.isEmpty(auth.venueArea)) {
-                sets.partitionCodes.add(auth.venueArea.trim());
-            }
-            if (!TextUtils.isEmpty(auth.venuePartition)) {
-                sets.zoneCodes.add(auth.venuePartition.trim());
-            }
+            addPrivilegeTokens(sets.partitionCodes, auth.venueArea);
+            addPrivilegeTokens(sets.partitionCodes, auth.venueAreaVal);
+            addPrivilegeTokens(sets.zoneCodes, auth.venuePartition);
+            addPrivilegeTokens(sets.zoneCodes, auth.venuePartitionVal);
         }
         return sets;
+    }
+
+    /** 将后台权限字段拆成可匹配 token（支持逗号 / 波浪号，并保留展示名） */
+    public static void addPrivilegeTokens(Set<String> target, @Nullable String raw) {
+        if (target == null || TextUtils.isEmpty(raw)) {
+            return;
+        }
+        String trimmed = raw.trim();
+        target.add(trimmed);
+        target.addAll(splitPrivileges(trimmed));
     }
 
     public static PermissionSets fromSavedPreferences(
@@ -130,18 +140,14 @@ public final class DevicePermissionHelper {
             if (auth == null) {
                 continue;
             }
-            if (!TextUtils.isEmpty(auth.venue)) {
-                sets.venueCodes.add(auth.venue.trim());
-            }
-            if (!TextUtils.isEmpty(auth.sportProject)) {
-                sets.sportCodes.add(auth.sportProject.trim());
-            }
-            if (!TextUtils.isEmpty(auth.venueArea)) {
-                sets.partitionCodes.add(auth.venueArea.trim());
-            }
-            if (!TextUtils.isEmpty(auth.venuePartition)) {
-                sets.zoneCodes.add(auth.venuePartition.trim());
-            }
+            addPrivilegeTokens(sets.venueCodes, auth.venue);
+            addPrivilegeTokens(sets.venueCodes, auth.venueVal);
+            addPrivilegeTokens(sets.sportCodes, auth.sportProject);
+            addPrivilegeTokens(sets.sportCodes, auth.sportProjectVal);
+            addPrivilegeTokens(sets.partitionCodes, auth.venueArea);
+            addPrivilegeTokens(sets.partitionCodes, auth.venueAreaVal);
+            addPrivilegeTokens(sets.zoneCodes, auth.venuePartition);
+            addPrivilegeTokens(sets.zoneCodes, auth.venuePartitionVal);
         }
         return sets;
     }
@@ -247,6 +253,10 @@ public final class DevicePermissionHelper {
      *   <li>ALL / INF（全部权限）</li>
      * </ul>
      */
+    public static Set<String> splitPrivilegeTokens(@Nullable String raw) {
+        return splitPrivileges(raw);
+    }
+
     private static Set<String> splitPrivileges(String raw) {
         Set<String> set = new LinkedHashSet<>();
         if (TextUtils.isEmpty(raw)) {

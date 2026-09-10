@@ -94,7 +94,7 @@
                     android:hint="例如：http://example.com"
                     android:inputType="textUri"
                     android:maxLines="1"
-                    android:text="https://dhy.hfpalmytech.com:8080/prod-api"
+                    android:text="https://dzzj.yjsrpz.com:8088/prod-api"
                     android:paddingStart="12dp"
                     android:paddingEnd="12dp"
                     android:textColor="@color/black"
@@ -335,6 +335,7 @@
                 android:id="@+id/card_record"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
                 app:cardBackgroundColor="@android:color/white"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="4dp"
@@ -373,6 +374,54 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="6dp"
                             android:text="查看所有核验记录"
+                            android:textColor="#6B6F82"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_query_cert"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardBackgroundColor="@android:color/white"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="4dp"
+                app:strokeColor="#F0F2F7"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="24dp">
+
+                    <ImageView
+                        android:layout_width="72dp"
+                        android:layout_height="72dp"
+                        android:src="@drawable/ic_tab_person" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="24dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="查询证件"
+                            android:textColor="@color/primary_blue"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="扫码/读证查询证件信息"
                             android:textColor="#6B6F82"
                             android:textSize="14sp" />
                     </LinearLayout>

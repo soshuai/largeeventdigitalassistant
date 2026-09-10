@@ -28,6 +28,7 @@ import com.largeevent.management.data.ActiveUserResolver;
 import com.largeevent.management.data.AppPreferences;
 import com.largeevent.management.data.DevicePermissionHelper;
 import com.largeevent.management.data.InitializationRepository;
+import com.largeevent.management.data.ModuleType;
 import com.largeevent.management.data.PersonVerificationHelper;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.CertificateInfo;
@@ -352,7 +353,8 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
 
         String activeId = AppPreferences.getLastActiveId(requireContext());
         BasicInfo basicInfo = initializationRepository.getBasicInfo();
-        DevicePermissionHelper.PermissionSets device = DevicePermissionHelper.resolveDevicePermissions(requireContext(), activeId, basicInfo);
+        DevicePermissionHelper.PermissionSets device = DevicePermissionHelper.resolveDevicePermissions(
+                requireContext(), activeId, basicInfo, ModuleType.PERSON);
 
         PersonVerificationHelper.StepResult step = PersonVerificationHelper.runCommonRules(requireContext(), activeId, userDTO, device);
 
@@ -613,7 +615,10 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
         try {
             String currentActiveId = AppPreferences.getLastActiveId(requireContext());
             BasicInfo basicInfo = initializationRepository.getBasicInfo();
-            com.largeevent.management.data.DevicePermissionHelper.PermissionSets device = com.largeevent.management.data.DevicePermissionHelper.resolveDevicePermissions(requireContext(), currentActiveId, basicInfo);
+            com.largeevent.management.data.DevicePermissionHelper.PermissionSets device =
+                    com.largeevent.management.data.DevicePermissionHelper.resolveDevicePermissions(
+                            requireContext(), currentActiveId, basicInfo,
+                            com.largeevent.management.data.ModuleType.PERSON);
 
             if (device.isEmpty()) {
                 Log.i(TAG, "权限校验通过: 设备未配置场馆/区域/分区权限要求");

@@ -230,7 +230,8 @@ class BasicInfoParser {
                     obj.optString("locationDesc"),
                     obj.optString("activityId"),
                     obj.optString("eqpId"),
-                    obj.optString("activityCode")
+                    obj.optString("activityCode"),
+                    obj.optInt("moduleType", 0)
             ));
         }
         return list;

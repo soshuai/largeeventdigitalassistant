@@ -1,18 +1,20 @@
 package com.largeevent.management.data;
 
 import android.text.TextUtils;
-import android.widget.CheckBox;
+import android.widget.TextView;
 
+import com.largeevent.management.R;
 import com.largeevent.management.network.dto.MatrixAuthInfoDTO;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * 将 getMatrixAuthInfoList 设备权限映射到活动设置页勾选框。
+ * 将 getMatrixAuthInfoList 设备权限映射到活动设置页权限芯片。
  */
 public final class MatrixAuthSelectionHelper {
 
@@ -21,27 +23,52 @@ public final class MatrixAuthSelectionHelper {
 
     public static void applyMatrixAuthToCheckboxes(
             List<MatrixAuthInfoDTO> authList,
-            List<CheckBox> venueCheckboxes,
-            List<CheckBox> partitionCheckboxes,
-            List<CheckBox> certZoneCheckboxes) {
+            List<TextView> venueChips,
+            List<TextView> partitionChips,
+            List<TextView> certZoneChips) {
         DevicePermissionHelper.PermissionSets sets =
                 DevicePermissionHelper.fromMatrixAuthDtoList(authList);
 
-        applyByDictCode(venueCheckboxes, sets.venueCodes);
-        applyVenueWithFallback(venueCheckboxes, authList, sets.venueCodes);
+        applyPermissionSets(venueChips, partitionChips, certZoneChips, sets);
+        applyVenueWithFallback(venueChips, authList, sets.venueCodes);
+    }
 
-        applyByDictCode(partitionCheckboxes, sets.partitionCodes);
-        applyByDictCode(certZoneCheckboxes, sets.zoneCodes);
+    /**
+     * 按已缓存的权限 code 勾选展示（先清空再勾选，切换人证/车证时可立即看到差异）。
+     */
+    public static void applyPermissionSets(
+            List<TextView> venueChips,
+            List<TextView> partitionChips,
+            List<TextView> certZoneChips,
+            DevicePermissionHelper.PermissionSets sets) {
+        Set<String> venues = sets != null ? sets.venueCodes : null;
+        Set<String> partitions = sets != null ? sets.partitionCodes : null;
+        Set<String> zones = sets != null ? sets.zoneCodes : null;
+        applyByDictCode(venueChips, venues);
+        applyByDictCode(partitionChips, partitions);
+        applyByDictCode(certZoneChips, zones);
+    }
+
+    /** 选中：蓝底白字；未选中：灰底灰字。不依赖系统 CheckBox 勾选渲染。 */
+    public static void setChipSelected(TextView chip, boolean selected) {
+        if (chip == null) {
+            return;
+        }
+        chip.setSelected(selected);
+        chip.setBackgroundResource(selected
+                ? R.drawable.bg_perm_chip_selected
+                : R.drawable.bg_perm_chip_normal);
+        chip.setTextColor(selected ? 0xFFFFFFFF : 0xFF4A4F63);
     }
 
     /**
      * 场馆：先按 dictCode 勾选；字典里没有的 code（如 SGG、INF）按 venueVal 与已有项文本匹配。
      */
     private static void applyVenueWithFallback(
-            List<CheckBox> venueCheckboxes,
+            List<TextView> venueChips,
             List<MatrixAuthInfoDTO> authList,
             Set<String> venueCodes) {
-        if (venueCheckboxes == null || venueCodes == null || venueCodes.isEmpty()) {
+        if (venueChips == null || venueCodes == null || venueCodes.isEmpty()) {
             return;
         }
 
@@ -49,54 +76,104 @@ public final class MatrixAuthSelectionHelper {
         if (authList != null) {
             for (MatrixAuthInfoDTO auth : authList) {
                 if (auth != null && !TextUtils.isEmpty(auth.venue)) {
-                    String code = auth.venue.trim();
-                    String label = !TextUtils.isEmpty(auth.venueVal) ? auth.venueVal.trim() : code;
-                    codeToLabel.put(code, label);
+                    for (String code : DevicePermissionHelper.splitPrivilegeTokens(auth.venue)) {
+                        String label = !TextUtils.isEmpty(auth.venueVal) ? auth.venueVal.trim() : code;
+                        codeToLabel.put(code, label);
+                    }
                 }
             }
         }
 
-        Set<String> matchedCodes = new HashSet<>();
-        for (CheckBox checkBox : venueCheckboxes) {
-            if (checkBox == null) {
+        for (TextView chip : venueChips) {
+            if (chip == null || chip.isSelected()) {
                 continue;
             }
-            Object tag = checkBox.getTag();
-            String dictCode = tag != null ? tag.toString() : null;
-            if (!TextUtils.isEmpty(dictCode) && venueCodes.contains(dictCode)) {
-                checkBox.setChecked(true);
-                matchedCodes.add(dictCode);
+            Object tag = chip.getTag();
+            String dictCode = tag != null ? tag.toString().trim() : "";
+            if (!TextUtils.isEmpty(dictCode) && containsIgnoreCase(venueCodes, dictCode)) {
+                setChipSelected(chip, true);
                 continue;
             }
-            CharSequence text = checkBox.getText();
+            CharSequence text = chip.getText();
             if (text == null) {
                 continue;
             }
             String label = text.toString().trim();
             for (Map.Entry<String, String> entry : codeToLabel.entrySet()) {
-                if (venueCodes.contains(entry.getKey())
-                        && (label.equals(entry.getValue()) || label.contains(entry.getValue())
+                if (containsIgnoreCase(venueCodes, entry.getKey())
+                        && (label.equals(entry.getValue())
+                        || label.contains(entry.getValue())
                         || entry.getValue().contains(label))) {
-                    checkBox.setChecked(true);
-                    matchedCodes.add(entry.getKey());
+                    setChipSelected(chip, true);
                     break;
                 }
             }
         }
     }
 
-    private static void applyByDictCode(List<CheckBox> checkboxes, Set<String> dictCodes) {
-        if (checkboxes == null || dictCodes == null || dictCodes.isEmpty()) {
+    private static void applyByDictCode(List<TextView> chips, Set<String> dictCodes) {
+        if (chips == null) {
             return;
         }
-        for (CheckBox checkBox : checkboxes) {
-            if (checkBox == null) {
+        boolean selectAll = containsFullPrivilege(dictCodes);
+        Set<String> normalized = normalizeCodes(dictCodes);
+        for (TextView chip : chips) {
+            if (chip == null) {
                 continue;
             }
-            Object tag = checkBox.getTag();
-            String dictCode = tag != null ? tag.toString() : null;
-            checkBox.setChecked(!TextUtils.isEmpty(dictCode) && dictCodes.contains(dictCode));
+            if (selectAll) {
+                setChipSelected(chip, true);
+                continue;
+            }
+            Object tag = chip.getTag();
+            String dictCode = tag != null ? tag.toString().trim() : "";
+            CharSequence textCs = chip.getText();
+            String label = textCs != null ? textCs.toString().trim() : "";
+            boolean selected = (!TextUtils.isEmpty(dictCode) && containsIgnoreCase(normalized, dictCode))
+                    || (!TextUtils.isEmpty(label) && containsIgnoreCase(normalized, label));
+            setChipSelected(chip, selected);
         }
+    }
+
+    private static boolean containsFullPrivilege(Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return false;
+        }
+        for (String code : codes) {
+            if (DevicePermissionHelper.isFullPrivilegeCode(code)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Set<String> normalizeCodes(Set<String> codes) {
+        Set<String> normalized = new HashSet<>();
+        if (codes == null) {
+            return normalized;
+        }
+        for (String code : codes) {
+            if (!TextUtils.isEmpty(code)) {
+                normalized.add(code.trim());
+            }
+        }
+        return normalized;
+    }
+
+    private static boolean containsIgnoreCase(Set<String> codes, String value) {
+        if (codes == null || codes.isEmpty() || TextUtils.isEmpty(value)) {
+            return false;
+        }
+        if (codes.contains(value)) {
+            return true;
+        }
+        String lower = value.toLowerCase(Locale.ROOT);
+        for (String code : codes) {
+            if (code != null && code.toLowerCase(Locale.ROOT).equals(lower)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 收集设备权限里存在、但 venueInfoList 字典中不存在的场馆 code → 展示名 */
@@ -110,12 +187,13 @@ public final class MatrixAuthSelectionHelper {
             if (auth == null || TextUtils.isEmpty(auth.venue)) {
                 continue;
             }
-            String code = auth.venue.trim();
-            if (dictVenueCodes != null && dictVenueCodes.contains(code)) {
-                continue;
-            }
-            if (!missing.containsKey(code)) {
-                missing.put(code, !TextUtils.isEmpty(auth.venueVal) ? auth.venueVal.trim() : code);
+            for (String code : DevicePermissionHelper.splitPrivilegeTokens(auth.venue)) {
+                if (dictVenueCodes != null && containsIgnoreCase(dictVenueCodes, code)) {
+                    continue;
+                }
+                if (!missing.containsKey(code)) {
+                    missing.put(code, !TextUtils.isEmpty(auth.venueVal) ? auth.venueVal.trim() : code);
+                }
             }
         }
         return missing;

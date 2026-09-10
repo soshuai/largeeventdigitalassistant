@@ -223,8 +223,10 @@ public final class PersonVerificationHelper {
     }
 
     public static boolean hasLocationAndZone(Context context, String activeId) {
-        String locationId = AppPreferences.getSelectedLocationId(context, activeId);
-        String zoneId = AppPreferences.getSelectedZoneId(context, activeId);
+        String locationId = AppPreferences.getSelectedLocationId(
+                context, activeId, ModuleType.PERSON);
+        String zoneId = AppPreferences.getSelectedZoneId(
+                context, activeId, ModuleType.PERSON);
         return !TextUtils.isEmpty(locationId) && !TextUtils.isEmpty(zoneId);
     }
 

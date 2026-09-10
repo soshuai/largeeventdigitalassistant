@@ -20,6 +20,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import com.largeevent.management.MainActivity;
+import com.largeevent.management.QueryCertActivity;
 import com.largeevent.management.R;
 import com.largeevent.management.RecordActivity;
 import com.largeevent.management.data.AppPreferences;
@@ -62,6 +63,7 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
     private View cardPersonVerify;
     private View cardVehicleVerify;
     private View cardRecord;
+    private View cardQueryCert;
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
@@ -122,6 +124,7 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
         cardPersonVerify = view.findViewById(R.id.card_person_verify);
         cardVehicleVerify = view.findViewById(R.id.card_vehicle_verify);
         cardRecord = view.findViewById(R.id.card_record);
+        cardQueryCert = view.findViewById(R.id.card_query_cert);
 
         Button startInitButton = view.findViewById(R.id.btn_start_initialize);
         startInitButton.setOnClickListener(v -> showFormState());
@@ -133,6 +136,7 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
         cardPersonVerify.setOnClickListener(v -> navigateToTab(R.id.nav_person_verify));
         cardVehicleVerify.setOnClickListener(v -> navigateToTab(R.id.nav_vehicle_verify));
         cardRecord.setOnClickListener(v -> openRecordActivity());
+        cardQueryCert.setOnClickListener(v -> openQueryCertActivity());
 
         String savedServerUrl = AppPreferences.getServerUrl(requireContext());
         if (!TextUtils.isEmpty(savedServerUrl)) {
@@ -241,6 +245,11 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
 
     private void openRecordActivity() {
         Intent intent = new Intent(requireContext(), RecordActivity.class);
+        startActivity(intent);
+    }
+
+    private void openQueryCertActivity() {
+        Intent intent = new Intent(requireContext(), QueryCertActivity.class);
         startActivity(intent);
     }
 
@@ -393,7 +402,8 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
 
     private void fetchBasicInfoWithEventCode(String baseUrl, String eventCode) {
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ResponseBody> call = apiService.getBasicInfo(eventCode);
+        String eqpId = AppPreferences.ensureDeviceCode(requireContext());
+        Call<ResponseBody> call = apiService.getBasicInfo(eventCode, eqpId);
         
         call.enqueue(new Callback<ResponseBody>() {
             @Override

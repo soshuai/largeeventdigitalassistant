@@ -40,6 +40,12 @@ public class AppPreferences {
     private static final String KEY_LAST_ACTIVE_ID = "key_last_active_id";
     private static final String KEY_DEVICE_CODE = "key_device_code";
     private static final String KEY_DEVICE_LOCATION = "key_device_location";
+    /** 活动设置页当前选择的业务模块：1 人证 / 2 车证 */
+    private static final String KEY_MODULE_TYPE = "key_module_type";
+
+    private static String scopedKey(String prefix, String activeId, int moduleType) {
+        return prefix + "_" + activeId + "_m" + ModuleType.normalize(moduleType);
+    }
 
     private static SharedPreferences getPrefs(Context context) {
         return context.getApplicationContext()
@@ -217,36 +223,55 @@ public class AppPreferences {
     }
 
     /**
-     * 缓存最近一次 getMatrixAuthInfoList 解析出的设备权限（未点保存设置前用于核验）
+     * 缓存最近一次 getMatrixAuthInfoList 解析出的设备权限（按人证/车证隔离）
      */
     public static void setDeviceMatrixAuthCodes(
             Context context,
             String activeId,
+            int moduleType,
             DevicePermissionHelper.PermissionSets sets) {
         if (TextUtils.isEmpty(activeId) || sets == null) {
             return;
         }
+        int module = ModuleType.normalize(moduleType);
         SharedPreferences prefs = getPrefs(context);
         prefs.edit()
-                .putStringSet(KEY_DEVICE_MATRIX_VENUE + "_" + activeId, new HashSet<>(sets.venueCodes))
-                .putStringSet(KEY_DEVICE_MATRIX_SPORT + "_" + activeId, new HashSet<>(sets.sportCodes))
-                .putStringSet(KEY_DEVICE_MATRIX_PARTITION + "_" + activeId, new HashSet<>(sets.partitionCodes))
-                .putStringSet(KEY_DEVICE_MATRIX_ZONE + "_" + activeId, new HashSet<>(sets.zoneCodes))
-                .putBoolean(KEY_DEVICE_PERM_CONFIGURED + "_" + activeId, sets.hasAnyConfigured())
+                .putStringSet(scopedKey(KEY_DEVICE_MATRIX_VENUE, activeId, module), new HashSet<>(sets.venueCodes))
+                .putStringSet(scopedKey(KEY_DEVICE_MATRIX_SPORT, activeId, module), new HashSet<>(sets.sportCodes))
+                .putStringSet(scopedKey(KEY_DEVICE_MATRIX_PARTITION, activeId, module), new HashSet<>(sets.partitionCodes))
+                .putStringSet(scopedKey(KEY_DEVICE_MATRIX_ZONE, activeId, module), new HashSet<>(sets.zoneCodes))
+                .putBoolean(scopedKey(KEY_DEVICE_PERM_CONFIGURED, activeId, module), sets.hasAnyConfigured())
                 .apply();
     }
 
+    /** @deprecated 使用带 moduleType 的重载 */
+    public static void setDeviceMatrixAuthCodes(
+            Context context,
+            String activeId,
+            DevicePermissionHelper.PermissionSets sets) {
+        setDeviceMatrixAuthCodes(context, activeId, ModuleType.PERSON, sets);
+    }
+
     public static DevicePermissionHelper.PermissionSets getDeviceMatrixAuthCodes(
-            Context context, String activeId) {
+            Context context, String activeId, int moduleType) {
         DevicePermissionHelper.PermissionSets sets = new DevicePermissionHelper.PermissionSets();
         if (TextUtils.isEmpty(activeId)) {
             return sets;
         }
+        int module = ModuleType.normalize(moduleType);
         SharedPreferences prefs = getPrefs(context);
-        Set<String> venues = prefs.getStringSet(KEY_DEVICE_MATRIX_VENUE + "_" + activeId, null);
-        Set<String> sports = prefs.getStringSet(KEY_DEVICE_MATRIX_SPORT + "_" + activeId, null);
-        Set<String> partitions = prefs.getStringSet(KEY_DEVICE_MATRIX_PARTITION + "_" + activeId, null);
-        Set<String> zones = prefs.getStringSet(KEY_DEVICE_MATRIX_ZONE + "_" + activeId, null);
+        Set<String> venues = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_VENUE, activeId, module), null);
+        Set<String> sports = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_SPORT, activeId, module), null);
+        Set<String> partitions = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_PARTITION, activeId, module), null);
+        Set<String> zones = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_ZONE, activeId, module), null);
+        // 兼容旧版未分模块的缓存
+        if (venues == null && sports == null && partitions == null && zones == null
+                && module == ModuleType.PERSON) {
+            venues = prefs.getStringSet(KEY_DEVICE_MATRIX_VENUE + "_" + activeId, null);
+            sports = prefs.getStringSet(KEY_DEVICE_MATRIX_SPORT + "_" + activeId, null);
+            partitions = prefs.getStringSet(KEY_DEVICE_MATRIX_PARTITION + "_" + activeId, null);
+            zones = prefs.getStringSet(KEY_DEVICE_MATRIX_ZONE + "_" + activeId, null);
+        }
         if (venues != null) {
             sets.venueCodes.addAll(venues);
         }
@@ -260,6 +285,11 @@ public class AppPreferences {
             sets.zoneCodes.addAll(zones);
         }
         return sets;
+    }
+
+    public static DevicePermissionHelper.PermissionSets getDeviceMatrixAuthCodes(
+            Context context, String activeId) {
+        return getDeviceMatrixAuthCodes(context, activeId, ModuleType.PERSON);
     }
 
     public static boolean isActivationCheckEnabled(Context context, String activeId) {
@@ -316,27 +346,34 @@ public class AppPreferences {
         editor.apply();
     }
 
-    public static void setDevicePermissionConfigured(Context context, String activeId, boolean configured) {
+    public static void setDevicePermissionConfigured(Context context, String activeId, int moduleType,
+                                                     boolean configured) {
         if (TextUtils.isEmpty(activeId)) {
             return;
         }
         getPrefs(context).edit()
-                .putBoolean(KEY_DEVICE_PERM_CONFIGURED + "_" + activeId, configured)
+                .putBoolean(scopedKey(KEY_DEVICE_PERM_CONFIGURED, activeId, moduleType), configured)
                 .apply();
     }
 
-    public static boolean isDevicePermissionConfigured(Context context, String activeId) {
+    public static void setDevicePermissionConfigured(Context context, String activeId, boolean configured) {
+        setDevicePermissionConfigured(context, activeId, ModuleType.PERSON, configured);
+    }
+
+    public static boolean isDevicePermissionConfigured(Context context, String activeId, int moduleType) {
         if (TextUtils.isEmpty(activeId)) {
             return false;
         }
+        int module = ModuleType.normalize(moduleType);
         SharedPreferences prefs = getPrefs(context);
-        if (prefs.getBoolean(KEY_DEVICE_PERM_CONFIGURED + "_" + activeId, false)) {
+        if (prefs.getBoolean(scopedKey(KEY_DEVICE_PERM_CONFIGURED, activeId, module), false)) {
             return true;
         }
-        return !getSelectedVenuePermissions(context, activeId).isEmpty()
-                || !getSelectedAreaPermissions(context, activeId).isEmpty()
-                || !getSelectedCertZonePermissions(context, activeId).isEmpty()
-                || !getDeviceMatrixAuthCodes(context, activeId).hasAnyConfigured();
+        return getDeviceMatrixAuthCodes(context, activeId, module).hasAnyConfigured();
+    }
+
+    public static boolean isDevicePermissionConfigured(Context context, String activeId) {
+        return isDevicePermissionConfigured(context, activeId, ModuleType.PERSON);
     }
 
     public static void setLastSyncResult(Context context, int personCount, int vehicleCount, String message) {
@@ -407,6 +444,18 @@ public class AppPreferences {
     }
 
     /**
+     * 确保已有设备编码；为空时生成并持久化
+     */
+    public static String ensureDeviceCode(Context context) {
+        String code = getDeviceCode(context);
+        if (TextUtils.isEmpty(code)) {
+            code = "DEV_" + System.currentTimeMillis();
+            setDeviceCode(context, code);
+        }
+        return code;
+    }
+
+    /**
      * 设置设备位置
      */
     public static void setDeviceLocation(Context context, String location) {
@@ -422,76 +471,119 @@ public class AppPreferences {
     }
 
     /**
-     * 获取选中的位置ID(按活动隔离)
+     * 获取选中的位置ID(按活动 + 人证/车证模块隔离)
      */
+    public static String getSelectedLocationId(Context context, String activeId, int moduleType) {
+        if (TextUtils.isEmpty(activeId)) {
+            return null;
+        }
+        SharedPreferences prefs = getPrefs(context);
+        int module = ModuleType.normalize(moduleType);
+        String value = prefs.getString(scopedKey(KEY_SELECTED_LOCATION_ID, activeId, module), null);
+        if (TextUtils.isEmpty(value) && module == ModuleType.PERSON) {
+            value = prefs.getString(KEY_SELECTED_LOCATION_ID + "_" + activeId, null);
+        }
+        return value;
+    }
+
     public static String getSelectedLocationId(Context context, String activeId) {
-        if (TextUtils.isEmpty(activeId)) {
-            return null;
-        }
-        SharedPreferences prefs = getPrefs(context);
-        String key = KEY_SELECTED_LOCATION_ID + "_" + activeId;
-        return prefs.getString(key, null);
+        return getSelectedLocationId(context, activeId, ModuleType.PERSON);
     }
 
-    /**
-     * 设置选中的位置ID(按活动隔离)
-     */
+    public static void setSelectedLocationId(Context context, String activeId, int moduleType,
+                                             String locationId) {
+        if (TextUtils.isEmpty(activeId)) {
+            return;
+        }
+        getPrefs(context).edit()
+                .putString(scopedKey(KEY_SELECTED_LOCATION_ID, activeId, moduleType), locationId)
+                .apply();
+    }
+
     public static void setSelectedLocationId(Context context, String activeId, String locationId) {
-        if (TextUtils.isEmpty(activeId)) {
-            return;
-        }
-        SharedPreferences prefs = getPrefs(context);
-        String key = KEY_SELECTED_LOCATION_ID + "_" + activeId;
-        prefs.edit().putString(key, locationId).apply();
+        setSelectedLocationId(context, activeId, ModuleType.PERSON, locationId);
     }
 
-    /**
-     * 获取选中的分区ID(按活动隔离)
-     */
-    public static String getSelectedZoneId(Context context, String activeId) {
+    public static String getSelectedZoneId(Context context, String activeId, int moduleType) {
         if (TextUtils.isEmpty(activeId)) {
             return null;
         }
         SharedPreferences prefs = getPrefs(context);
-        String key = KEY_SELECTED_ZONE_ID + "_" + activeId;
-        return prefs.getString(key, null);
+        int module = ModuleType.normalize(moduleType);
+        String value = prefs.getString(scopedKey(KEY_SELECTED_ZONE_ID, activeId, module), null);
+        if (TextUtils.isEmpty(value) && module == ModuleType.PERSON) {
+            value = prefs.getString(KEY_SELECTED_ZONE_ID + "_" + activeId, null);
+        }
+        return value;
     }
 
-    /**
-     * 设置选中的分区ID(按活动隔离)
-     */
-    public static void setSelectedZoneId(Context context, String activeId, String zoneId) {
+    public static String getSelectedZoneId(Context context, String activeId) {
+        return getSelectedZoneId(context, activeId, ModuleType.PERSON);
+    }
+
+    public static void setSelectedZoneId(Context context, String activeId, int moduleType, String zoneId) {
         if (TextUtils.isEmpty(activeId)) {
             return;
         }
-        SharedPreferences prefs = getPrefs(context);
-        String key = KEY_SELECTED_ZONE_ID + "_" + activeId;
-        prefs.edit().putString(key, zoneId).apply();
+        getPrefs(context).edit()
+                .putString(scopedKey(KEY_SELECTED_ZONE_ID, activeId, moduleType), zoneId)
+                .apply();
     }
 
-    /**
-     * 当前活动下位置+分区是否已在「保存设置」后完成过设备注册与权限拉取。
-     */
+    public static void setSelectedZoneId(Context context, String activeId, String zoneId) {
+        setSelectedZoneId(context, activeId, ModuleType.PERSON, zoneId);
+    }
+
+    public static int getModuleType(Context context, String activeId) {
+        if (TextUtils.isEmpty(activeId)) {
+            return ModuleType.PERSON;
+        }
+        return ModuleType.normalize(
+                getPrefs(context).getInt(KEY_MODULE_TYPE + "_" + activeId, ModuleType.PERSON));
+    }
+
+    public static void setModuleType(Context context, String activeId, int moduleType) {
+        if (TextUtils.isEmpty(activeId)) {
+            return;
+        }
+        getPrefs(context).edit()
+                .putInt(KEY_MODULE_TYPE + "_" + activeId, ModuleType.normalize(moduleType))
+                .apply();
+    }
+
     public static boolean isDeviceAuthSynced(
-            Context context, String activeId, String locationId, String zoneId) {
+            Context context, String activeId, int moduleType, String locationId, String zoneId) {
         if (TextUtils.isEmpty(activeId) || TextUtils.isEmpty(locationId)
                 || TextUtils.isEmpty(zoneId)) {
             return false;
         }
-        String saved = getPrefs(context).getString(KEY_DEVICE_AUTH_SYNCED + activeId, null);
+        int module = ModuleType.normalize(moduleType);
+        String saved = getPrefs(context).getString(
+                KEY_DEVICE_AUTH_SYNCED + activeId + "_m" + module, null);
         return buildDeviceAuthSyncKey(locationId, zoneId).equals(saved);
     }
 
-    public static void setDeviceAuthSynced(
+    public static boolean isDeviceAuthSynced(
             Context context, String activeId, String locationId, String zoneId) {
+        return isDeviceAuthSynced(context, activeId, ModuleType.PERSON, locationId, zoneId);
+    }
+
+    public static void setDeviceAuthSynced(
+            Context context, String activeId, int moduleType, String locationId, String zoneId) {
         if (TextUtils.isEmpty(activeId) || TextUtils.isEmpty(locationId)
                 || TextUtils.isEmpty(zoneId)) {
             return;
         }
+        int module = ModuleType.normalize(moduleType);
         getPrefs(context).edit()
-                .putString(KEY_DEVICE_AUTH_SYNCED + activeId,
+                .putString(KEY_DEVICE_AUTH_SYNCED + activeId + "_m" + module,
                         buildDeviceAuthSyncKey(locationId, zoneId))
                 .apply();
+    }
+
+    public static void setDeviceAuthSynced(
+            Context context, String activeId, String locationId, String zoneId) {
+        setDeviceAuthSynced(context, activeId, ModuleType.PERSON, locationId, zoneId);
     }
 
     /** 切换活动时清除该活动下的同步标记，以便重新选择位置/分区后拉取权限 */

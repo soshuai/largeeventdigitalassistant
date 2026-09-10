@@ -86,8 +86,9 @@ class ActiveUserBaseDTO { // Getters
     @JvmField
     var preferredGivenName: String? = null
 
-    /** 芯片号（接口字段 chipid）  */
+    /** 芯片号（接口字段 chipid / chipId）  */
     @JvmField
+    @com.google.gson.annotations.SerializedName(value = "chipid", alternate = ["chipId"])
     var chipid: String? = null
 
     /** 活动 ID（接口字段 activityId）  */
