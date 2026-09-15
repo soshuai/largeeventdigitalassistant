@@ -3,10 +3,12 @@ package com.largeevent.management.network.dto
 import com.google.gson.annotations.SerializedName
 
 /**
- * 人脸比对响应 DTO。
+ * 人脸比对响应接收类（非 ApiResponse 包装）。
+ *
+ * 接口：`POST baidu/faceMatch`
  * 兼容两种格式：
- * 1. 服务端包装：{ "code": 200, "msg": "...", "data": { "result": { "score": ... } } }
- * 2. 百度原始：{ "error_code": 0, "error_msg": "SUCCESS", "result": { "score": ... } }
+ * 1. 服务端包装：`{ "code": 200, "msg": "...", "data": { "result": { "score": ... } } }`
+ * 2. 百度原始：`{ "error_code": 0, "error_msg": "SUCCESS", "result": { "score": ... } }`
  */
 class FaceMatchResponseDTO {
     /** 服务端通用 code（200 表示成功） */

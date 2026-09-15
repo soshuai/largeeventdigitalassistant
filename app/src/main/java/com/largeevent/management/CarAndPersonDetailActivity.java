@@ -405,14 +405,16 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
 
             String venueNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
                     info.venuePrivileges, basicInfo.getVenueInfoList());
-            String partitionNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
+            // 区域权限 ↔ areaPrivileges / personCertAreaList
+            String areaNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
                     info.areaPrivileges, basicInfo.getPersonCertAreaList());
-            String zoneNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
+            // 分区权限 ↔ zonePrivileges / personCertZoneList
+            String partitionNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
                     info.zonePrivileges, basicInfo.getPersonCertZoneList());
 
             tvVenuePermission.setText(formatPermissionLine("场馆权限：", venueNames));
             tvPartitionPermission.setText(formatPermissionLine("分区权限：", partitionNames));
-            tvCertificatePermission.setText(formatPermissionLine("区域权限：", zoneNames));
+            tvCertificatePermission.setText(formatPermissionLine("区域权限：", areaNames));
         } catch (Exception e) {
             Log.e(TAG, "Failed to display permissions", e);
             tvVenuePermission.setText("场馆权限：解析失败");

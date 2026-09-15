@@ -96,25 +96,25 @@ public class QueryCertResultActivity extends AppCompatActivity {
             if (basicInfo != null) {
                 String venueNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
                         info.venuePrivileges, basicInfo.getVenueInfoList());
-                // 分区权限 ↔ areaPrivileges / personCertAreaList
-                String partitionNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
+                // 区域权限 ↔ areaPrivileges / personCertAreaList
+                String areaNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
                         info.areaPrivileges, basicInfo.getPersonCertAreaList());
-                // 区域权限 ↔ zonePrivileges / personCertZoneList
-                String zoneNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
+                // 分区权限 ↔ zonePrivileges / personCertZoneList
+                String partitionNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
                         info.zonePrivileges, basicInfo.getPersonCertZoneList());
                 tvVenue.setText("场馆权限：" + displayOrDash(venueNames));
                 tvZone.setText("分区权限：" + displayOrDash(partitionNames));
-                tvArea.setText("区域权限：" + displayOrDash(zoneNames));
+                tvArea.setText("区域权限：" + displayOrDash(areaNames));
             } else {
                 tvVenue.setText("场馆权限：" + safe(info.venuePrivileges));
-                tvZone.setText("分区权限：" + safe(info.areaPrivileges));
-                tvArea.setText("区域权限：" + safe(info.zonePrivileges));
+                tvZone.setText("分区权限：" + safe(info.zonePrivileges));
+                tvArea.setText("区域权限：" + safe(info.areaPrivileges));
             }
         } catch (Exception e) {
             Log.e(TAG, "map privileges failed", e);
             tvVenue.setText("场馆权限：" + safe(info.venuePrivileges));
-            tvZone.setText("分区权限：" + safe(info.areaPrivileges));
-            tvArea.setText("区域权限：" + safe(info.zonePrivileges));
+            tvZone.setText("分区权限：" + safe(info.zonePrivileges));
+            tvArea.setText("区域权限：" + safe(info.areaPrivileges));
         }
     }
 

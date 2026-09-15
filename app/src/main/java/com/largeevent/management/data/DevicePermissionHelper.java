@@ -20,13 +20,12 @@ import java.util.Set;
 /**
  * 设备侧通行权限（场馆 / 区域 / 分区）解析与证件比对。
  * <p>
- * 约定（与 getBasicInfo 字典及后台 matrixAuth 实际数据一致）：
+ * 约定（与 getBasicInfo 字典、getActiveUser、matrixAuth 一致）：
  * <ul>
  *   <li>场馆：venue / venuePrivileges ↔ venueInfoList</li>
- *   <li>区域：venuePartition / zonePrivileges ↔ personCertZoneList（dictCode 1~9）</li>
- *   <li>分区：venueArea / areaPrivileges ↔ personCertAreaList（红/白/蓝）</li>
+ *   <li>区域：venueArea / areaPrivileges ↔ personCertAreaList</li>
+ *   <li>分区：venuePartition / zonePrivileges ↔ personCertZoneList</li>
  * </ul>
- * 注：字段名 venueArea/venuePartition 与中文「区域/分区」字面相反，以字典列表为准。
  */
 public final class DevicePermissionHelper {
 
@@ -41,14 +40,14 @@ public final class DevicePermissionHelper {
         public final Set<String> venueCodes = new HashSet<>();
         /** 分项 code（matrixAuth.sportProject） */
         public final Set<String> sportCodes = new HashSet<>();
-        /** 区域权限 code（matrixAuth.venuePartition → personCertZoneList） */
-        public final Set<String> zoneCodes = new HashSet<>();
-        /** 分区权限 code（matrixAuth.venueArea → personCertAreaList） */
+        /** 区域权限 code（matrixAuth.venueArea → personCertAreaList / areaPrivileges） */
+        public final Set<String> areaCodes = new HashSet<>();
+        /** 分区权限 code（matrixAuth.venuePartition → personCertZoneList / zonePrivileges） */
         public final Set<String> partitionCodes = new HashSet<>();
 
         public boolean isEmpty() {
             return venueCodes.isEmpty() && sportCodes.isEmpty()
-                    && zoneCodes.isEmpty() && partitionCodes.isEmpty();
+                    && areaCodes.isEmpty() && partitionCodes.isEmpty();
         }
 
         public boolean hasAnyConfigured() {
@@ -94,11 +93,11 @@ public final class DevicePermissionHelper {
             addPrivilegeTokens(sets.venueCodes, auth.venueVal);
             addPrivilegeTokens(sets.sportCodes, auth.sportProject);
             addPrivilegeTokens(sets.sportCodes, auth.sportProjectVal);
-            // 后台数据：venueArea=红/白/蓝(分区)，venuePartition=1~9(区域)
-            addPrivilegeTokens(sets.partitionCodes, auth.venueArea);
-            addPrivilegeTokens(sets.partitionCodes, auth.venueAreaVal);
-            addPrivilegeTokens(sets.zoneCodes, auth.venuePartition);
-            addPrivilegeTokens(sets.zoneCodes, auth.venuePartitionVal);
+            // 区域：venueArea；分区：venuePartition
+            addPrivilegeTokens(sets.areaCodes, auth.venueArea);
+            addPrivilegeTokens(sets.areaCodes, auth.venueAreaVal);
+            addPrivilegeTokens(sets.partitionCodes, auth.venuePartition);
+            addPrivilegeTokens(sets.partitionCodes, auth.venuePartitionVal);
         }
         return sets;
     }
@@ -122,10 +121,11 @@ public final class DevicePermissionHelper {
         sets.venueCodes.addAll(resolveDictCodes(
                 basicInfo.getVenueInfoList(),
                 AppPreferences.getSelectedVenuePermissions(context, activeId)));
-        sets.partitionCodes.addAll(resolveDictCodes(
+        // 区域字典 personCertAreaList；分区字典 personCertZoneList
+        sets.areaCodes.addAll(resolveDictCodes(
                 basicInfo.getPersonCertAreaList(),
                 AppPreferences.getSelectedAreaPermissions(context, activeId)));
-        sets.zoneCodes.addAll(resolveDictCodes(
+        sets.partitionCodes.addAll(resolveDictCodes(
                 basicInfo.getPersonCertZoneList(),
                 AppPreferences.getSelectedCertZonePermissions(context, activeId)));
         return sets;
@@ -144,18 +144,19 @@ public final class DevicePermissionHelper {
             addPrivilegeTokens(sets.venueCodes, auth.venueVal);
             addPrivilegeTokens(sets.sportCodes, auth.sportProject);
             addPrivilegeTokens(sets.sportCodes, auth.sportProjectVal);
-            addPrivilegeTokens(sets.partitionCodes, auth.venueArea);
-            addPrivilegeTokens(sets.partitionCodes, auth.venueAreaVal);
-            addPrivilegeTokens(sets.zoneCodes, auth.venuePartition);
-            addPrivilegeTokens(sets.zoneCodes, auth.venuePartitionVal);
+            addPrivilegeTokens(sets.areaCodes, auth.venueArea);
+            addPrivilegeTokens(sets.areaCodes, auth.venueAreaVal);
+            addPrivilegeTokens(sets.partitionCodes, auth.venuePartition);
+            addPrivilegeTokens(sets.partitionCodes, auth.venuePartitionVal);
         }
         return sets;
     }
 
     /**
-     * 校验证件是否满足设备权限（场馆/分项/分区/区域均需满足；未配置的类型视为不限制）。
-     * 证件某一维度的 ALL/INF 仅在该维度且设备已配置该维度时视为满足，不会豁免其它维度。
-     *
+     * 校验证件是否满足设备权限（场馆/分项/区域/分区均需满足；未配置的类型视为不限制）。
+     * <p>
+     * @param areaPrivileges 区域权限（getActiveUser.areaPrivileges）
+     * @param zonePrivileges 分区权限（getActiveUser.zonePrivileges）
      * @param strictEmptyDevice true 时设备未配置任何权限则拒绝（须先在设置页配置）
      */
     public static boolean certificateMatchesDevice(
@@ -173,25 +174,24 @@ public final class DevicePermissionHelper {
         }
 
         Set<String> certVenues = splitPrivileges(venuePrivileges);
-        Set<String> certPartitions = splitPrivileges(areaPrivileges);
-        Set<String> certZones = splitPrivileges(zonePrivileges);
+        Set<String> certAreas = splitPrivileges(areaPrivileges);
+        Set<String> certPartitions = splitPrivileges(zonePrivileges);
         Set<String> certSports = splitPrivileges(sportPrivileges);
 
-        // 各维度独立校验：证件在「场馆」为 ALL 不代表「区域」也满足设备要求的 Z01 等
         boolean venueOk = device.venueCodes.isEmpty()
                 || hasFullPrivilege(certVenues)
                 || intersects(certVenues, device.venueCodes);
         boolean sportOk = device.sportCodes.isEmpty()
                 || hasFullPrivilege(certSports)
                 || intersects(certSports, device.sportCodes);
-        boolean zoneOk = device.zoneCodes.isEmpty()
-                || hasFullPrivilege(certZones)
-                || intersects(certZones, device.zoneCodes);
+        boolean areaOk = device.areaCodes.isEmpty()
+                || hasFullPrivilege(certAreas)
+                || intersects(certAreas, device.areaCodes);
         boolean partitionOk = device.partitionCodes.isEmpty()
                 || hasFullPrivilege(certPartitions)
                 || intersects(certPartitions, device.partitionCodes);
 
-        return venueOk && sportOk && zoneOk && partitionOk;
+        return venueOk && sportOk && areaOk && partitionOk;
     }
 
     /** @deprecated 使用带 sportPrivileges 的重载 */

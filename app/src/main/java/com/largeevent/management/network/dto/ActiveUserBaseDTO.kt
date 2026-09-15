@@ -1,8 +1,13 @@
 package com.largeevent.management.network.dto
 
 /**
- * 活动人员基础数据 DTO
- * 对应接口：GET /android/api/getActiveUser
+ * 活动人员/证件接收类。
+ *
+ * 接口：
+ * - `GET androidNew/api/getActiveUser`
+ * - `GET androidNew/api/getActiveUserByIdNumber`
+ *
+ * 位于 [ApiResponse.data] 的列表元素。
  */
 class ActiveUserBaseDTO { // Getters
     // Setters
@@ -74,15 +79,19 @@ class ActiveUserBaseDTO { // Getters
     @JvmField
     var givenNameInEnglish: String? = null
 
+    /** 首选中文姓 */
     @JvmField
     var preferredChineseFamilyName: String? = null
 
+    /** 首选中文名 */
     @JvmField
     var preferredChineseGivenName: String? = null
 
+    /** 首选英文姓 */
     @JvmField
     var preferredFamilyName: String? = null
 
+    /** 首选英文名 */
     @JvmField
     var preferredGivenName: String? = null
 
@@ -103,6 +112,7 @@ class ActiveUserBaseDTO { // Getters
     @JvmField
     var cardReduceImage: String? = null
 
+    /** 业务编号 */
     @JvmField
     var number: String? = null
 

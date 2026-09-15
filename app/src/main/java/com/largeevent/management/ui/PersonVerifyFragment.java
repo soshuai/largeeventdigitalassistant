@@ -230,7 +230,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     private void startVerification() {
         if (test) {
             //TODO 测试 E00401531D5F1031 、E00401531D5F73AE
-            currentChipId = "E00401531D5F73AE";
+            currentChipId = "E01D20C429290143";
         } else {
             if (verifying) {
                 return;
@@ -628,11 +628,11 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
 
             Log.d(TAG, "开始权限校验");
             Log.d(TAG, "设备场馆权限(code): " + device.venueCodes);
-            Log.d(TAG, "设备区域权限(code, venuePartition): " + device.zoneCodes);
-            Log.d(TAG, "设备分区权限(code, venueArea): " + device.partitionCodes);
+            Log.d(TAG, "设备区域权限(code, venueArea): " + device.areaCodes);
+            Log.d(TAG, "设备分区权限(code, venuePartition): " + device.partitionCodes);
             Log.d(TAG, "证件场馆(venuePrivileges): " + info.venuePrivileges);
-            Log.d(TAG, "证件分区(areaPrivileges): " + info.areaPrivileges);
-            Log.d(TAG, "证件区域(zonePrivileges): " + info.zonePrivileges);
+            Log.d(TAG, "证件区域(areaPrivileges): " + info.areaPrivileges);
+            Log.d(TAG, "证件分区(zonePrivileges): " + info.zonePrivileges);
 
             boolean finalResult = DevicePermissionHelper.certificateMatchesDevice(info.venuePrivileges, info.areaPrivileges, info.zonePrivileges, info.sportPrivileges, device, true);
 

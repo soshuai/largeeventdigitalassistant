@@ -40,6 +40,15 @@ public class InitializationRepository {
         return insertPayload(serverUrl, payload.toString());
     }
 
+    /** 保存 getBasicInfo 的 data（{@link com.largeevent.management.network.dto.BasicInfoDTO}） */
+    public synchronized long saveBaseInfo(String serverUrl,
+                                          com.largeevent.management.network.dto.BasicInfoDTO dto)
+            throws JSONException {
+        String json = com.largeevent.management.network.NetworkManager.getInstance()
+                .getGson().toJson(dto != null ? dto : new com.largeevent.management.network.dto.BasicInfoDTO());
+        return saveBaseInfo(serverUrl, json);
+    }
+
     public synchronized long saveActiveList(String serverUrl, String activeListJson) throws JSONException {
         JSONObject payload = loadCurrentPayload();
         payload.put("activeList", new JSONArray(activeListJson));
@@ -143,11 +152,7 @@ public class InitializationRepository {
 
         cachedBasicInfo = null;
         if (baseInfoObj != null) {
-            try {
-                cachedBasicInfo = BasicInfoParser.parse(baseInfoObj.toString());
-            } catch (JSONException e) {
-                cachedBasicInfo = null;
-            }
+            cachedBasicInfo = BasicInfoParser.parse(baseInfoObj.toString());
         }
 
         cachedActiveList = new ArrayList<>();

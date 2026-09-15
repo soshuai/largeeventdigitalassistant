@@ -1,7 +1,12 @@
 package com.largeevent.management.network.dto
 
 /**
- * 分页结果
+ * 通用分页结果接收类。
+ *
+ * 用于 `selectPersonCheckRecord` / `selectCarCertCheckRecord` 等分页接口，
+ * 位于 [ApiResponse.data]；列表在 [records]。
+ *
+ * @param T 单条记录类型，如 [PersonCardCheckModel]、[CarCertificateCheckModel]
  */
 class PageResult<T> {
     /** 数据列表 */

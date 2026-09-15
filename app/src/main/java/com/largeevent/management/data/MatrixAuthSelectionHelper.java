@@ -25,28 +25,31 @@ public final class MatrixAuthSelectionHelper {
             List<MatrixAuthInfoDTO> authList,
             List<TextView> venueChips,
             List<TextView> partitionChips,
-            List<TextView> certZoneChips) {
+            List<TextView> areaChips) {
         DevicePermissionHelper.PermissionSets sets =
                 DevicePermissionHelper.fromMatrixAuthDtoList(authList);
 
-        applyPermissionSets(venueChips, partitionChips, certZoneChips, sets);
+        applyPermissionSets(venueChips, partitionChips, areaChips, sets);
         applyVenueWithFallback(venueChips, authList, sets.venueCodes);
     }
 
     /**
-     * 按已缓存的权限 code 勾选展示（先清空再勾选，切换人证/车证时可立即看到差异）。
+     * 按已缓存的权限 code 勾选展示。
+     *
+     * @param partitionChips 分区权限芯片（personCertZoneList）
+     * @param areaChips      区域权限芯片（personCertAreaList）
      */
     public static void applyPermissionSets(
             List<TextView> venueChips,
             List<TextView> partitionChips,
-            List<TextView> certZoneChips,
+            List<TextView> areaChips,
             DevicePermissionHelper.PermissionSets sets) {
         Set<String> venues = sets != null ? sets.venueCodes : null;
         Set<String> partitions = sets != null ? sets.partitionCodes : null;
-        Set<String> zones = sets != null ? sets.zoneCodes : null;
+        Set<String> areas = sets != null ? sets.areaCodes : null;
         applyByDictCode(venueChips, venues);
         applyByDictCode(partitionChips, partitions);
-        applyByDictCode(certZoneChips, zones);
+        applyByDictCode(areaChips, areas);
     }
 
     /** 选中：蓝底白字；未选中：灰底灰字。不依赖系统 CheckBox 勾选渲染。 */

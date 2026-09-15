@@ -4,8 +4,11 @@ import java.io.*
 import java.util.Date
 
 /**
- * 车证数据 DTO
- * 对应接口：GET /android/getActiveCarCert
+ * 车证详情接收类。
+ *
+ * 接口：
+ * - `GET androidNew/api/getActiveCarCert` — [ApiResponse.data] 列表元素
+ * - `POST androidNew/api/updateCarCert` — 请求体（响应为原始 ResponseBody）
  */
 class CarCertificateDTO : Serializable { // Getters
     // Setters
@@ -65,26 +68,31 @@ class CarCertificateDTO : Serializable { // Getters
     @JvmField
     var responsibilityPhone: String? = null
 
-    /** 场馆  */
+    /** 场馆（车证权限比对用，对应设备场馆维）  */
     @JvmField
     var area: String? = null
 
-
+    /** 证件类型 */
     @JvmField
     var cardType: String? = null
 
+    /** 车牌颜色 */
     @JvmField
     var licensePlateColor: String? = null
 
+    /** 有效期开始 */
     @JvmField
     var startTime: String? = null
 
+    /** 有效期结束 */
     @JvmField
     var endTime: String? = null
 
+    /** 通行权限描述 */
     @JvmField
     var accessAuthority: String? = null
 
+    /** 活动/赛事状态 */
     @JvmField
     var eventStatus: String? = null
 
@@ -94,6 +102,7 @@ class CarCertificateDTO : Serializable { // Getters
     @JvmField
     var isLost: String? = null
 
+    /** 活动 ID */
     @JvmField
     var activeId: String? = null
 

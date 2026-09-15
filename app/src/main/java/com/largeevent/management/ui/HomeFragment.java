@@ -403,40 +403,33 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
     private void fetchBasicInfoWithEventCode(String baseUrl, String eventCode) {
         ApiService apiService = NetworkManager.getInstance().getApiService();
         String eqpId = AppPreferences.ensureDeviceCode(requireContext());
-        Call<ResponseBody> call = apiService.getBasicInfo(eventCode, eqpId);
-        
-        call.enqueue(new Callback<ResponseBody>() {
+        Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call =
+                apiService.getBasicInfo(eventCode, eqpId);
+
+        call.enqueue(new Callback<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>>() {
             @Override
-            public void onResponse(@NonNull Call<ResponseBody> call, @NonNull Response<ResponseBody> response) {
+            public void onResponse(
+                    @NonNull Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
+                    @NonNull Response<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> response) {
                 if (!isAdded()) return;
-                
+
                 try {
                     if (!response.isSuccessful()) {
                         throw new IOException("下载失败，状态码：" + response.code());
                     }
-                    
-                    ResponseBody body = response.body();
-                    if (body == null) {
-                        throw new IOException("响应体为空");
+                    ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO> apiResponse = response.body();
+                    if (apiResponse == null || !apiResponse.isSuccess()) {
+                        throw new IOException(apiResponse != null
+                                ? apiResponse.getMessage() : "基础信息接口返回错误");
                     }
-                    
-                    updateProgress(75);
-                    String payload = body.string();
-                    
-                    JSONObject root = new JSONObject(payload);
-                    int code = root.optInt("code", -1);
-                    if (code != 200) {
-                        throw new IOException(root.optString("message", "基础信息接口返回错误"));
-                    }
-                    
-                    JSONObject data = root.optJSONObject("data");
+                    com.largeevent.management.network.dto.BasicInfoDTO data = apiResponse.getData();
                     if (data == null) {
                         throw new IOException("基础信息数据为空");
                     }
-                    
+
+                    updateProgress(75);
                     updateProgress(90);
-                    repository.saveBaseInfo(baseUrl, data.toString());
-                    
+                    repository.saveBaseInfo(baseUrl, data);
                     updateProgress(100);
                     notifyInitializationCompleted();
                 } catch (IOException | JSONException e) {
@@ -445,7 +438,9 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
             }
 
             @Override
-            public void onFailure(@NonNull Call<ResponseBody> call, @NonNull Throwable t) {
+            public void onFailure(
+                    @NonNull Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
+                    @NonNull Throwable t) {
                 if (!isAdded()) return;
                 handleInitializationError("网络错误：" + t.getMessage());
             }

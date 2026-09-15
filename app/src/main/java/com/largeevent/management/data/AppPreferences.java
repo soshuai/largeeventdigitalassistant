@@ -24,8 +24,10 @@ public class AppPreferences {
     private static final String KEY_SELECTED_CERT_ZONE_PERMISSIONS = "key_selected_cert_zone_permissions";
     private static final String KEY_DEVICE_MATRIX_VENUE = "key_device_matrix_venue";
     private static final String KEY_DEVICE_MATRIX_SPORT = "key_device_matrix_sport";
+    /** 区域权限（venueArea / areaPrivileges）；新 key，避免与旧错误语义混用 */
+    private static final String KEY_DEVICE_MATRIX_AREA = "key_device_matrix_area";
+    /** 分区权限（venuePartition / zonePrivileges） */
     private static final String KEY_DEVICE_MATRIX_PARTITION = "key_device_matrix_partition";
-    private static final String KEY_DEVICE_MATRIX_ZONE = "key_device_matrix_zone";
     private static final String KEY_ACTIVATION_CHECK = "key_activation_check_enabled";
     private static final String KEY_EQP_TYPE = "key_eqp_type";
     private static final String KEY_SUB_UNIT = "key_sub_unit_name";
@@ -238,8 +240,8 @@ public class AppPreferences {
         prefs.edit()
                 .putStringSet(scopedKey(KEY_DEVICE_MATRIX_VENUE, activeId, module), new HashSet<>(sets.venueCodes))
                 .putStringSet(scopedKey(KEY_DEVICE_MATRIX_SPORT, activeId, module), new HashSet<>(sets.sportCodes))
+                .putStringSet(scopedKey(KEY_DEVICE_MATRIX_AREA, activeId, module), new HashSet<>(sets.areaCodes))
                 .putStringSet(scopedKey(KEY_DEVICE_MATRIX_PARTITION, activeId, module), new HashSet<>(sets.partitionCodes))
-                .putStringSet(scopedKey(KEY_DEVICE_MATRIX_ZONE, activeId, module), new HashSet<>(sets.zoneCodes))
                 .putBoolean(scopedKey(KEY_DEVICE_PERM_CONFIGURED, activeId, module), sets.hasAnyConfigured())
                 .apply();
     }
@@ -262,15 +264,17 @@ public class AppPreferences {
         SharedPreferences prefs = getPrefs(context);
         Set<String> venues = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_VENUE, activeId, module), null);
         Set<String> sports = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_SPORT, activeId, module), null);
+        Set<String> areas = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_AREA, activeId, module), null);
         Set<String> partitions = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_PARTITION, activeId, module), null);
-        Set<String> zones = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_ZONE, activeId, module), null);
-        // 兼容旧版未分模块的缓存
-        if (venues == null && sports == null && partitions == null && zones == null
+        // 无 AREA key 表示尚未按「区域/分区」纠正后的语义写入，忽略旧 PARTITION，避免误用
+        if (areas == null) {
+            partitions = null;
+        }
+        // 兼容旧版未分模块的缓存（仅场馆/分项）
+        if (venues == null && sports == null && areas == null && partitions == null
                 && module == ModuleType.PERSON) {
             venues = prefs.getStringSet(KEY_DEVICE_MATRIX_VENUE + "_" + activeId, null);
             sports = prefs.getStringSet(KEY_DEVICE_MATRIX_SPORT + "_" + activeId, null);
-            partitions = prefs.getStringSet(KEY_DEVICE_MATRIX_PARTITION + "_" + activeId, null);
-            zones = prefs.getStringSet(KEY_DEVICE_MATRIX_ZONE + "_" + activeId, null);
         }
         if (venues != null) {
             sets.venueCodes.addAll(venues);
@@ -278,11 +282,11 @@ public class AppPreferences {
         if (sports != null) {
             sets.sportCodes.addAll(sports);
         }
+        if (areas != null) {
+            sets.areaCodes.addAll(areas);
+        }
         if (partitions != null) {
             sets.partitionCodes.addAll(partitions);
-        }
-        if (zones != null) {
-            sets.zoneCodes.addAll(zones);
         }
         return sets;
     }

@@ -238,9 +238,10 @@ public class EventSettingsActivity extends AppCompatActivity {
             suppressSpinnerCallback = false;
 
             populateVenuePermissions(basicInfo, null);
-            populateDictPermissions(basicInfo.getPersonCertAreaList(), null,
-                    containerPartitionPermissions, partitionPermissionChips);
+            // 分区权限 ← personCertZoneList；区域权限 ← personCertAreaList
             populateDictPermissions(basicInfo.getPersonCertZoneList(), null,
+                    containerPartitionPermissions, partitionPermissionChips);
+            populateDictPermissions(basicInfo.getPersonCertAreaList(), null,
                     containerCertZonePermissions, certZonePermissionChips);
             highlightMatrixAuthPermissions();
 
@@ -548,8 +549,8 @@ public class EventSettingsActivity extends AppCompatActivity {
                 venuePermissionChips, partitionPermissionChips, certZonePermissionChips, sets);
         Log.d(TAG, "highlightMatrixAuth module=" + currentModuleType
                 + " venue=" + sets.venueCodes
-                + " partition=" + sets.partitionCodes
-                + " zone=" + sets.zoneCodes);
+                + " area(区域)=" + sets.areaCodes
+                + " partition(分区)=" + sets.partitionCodes);
     }
 
     private void registerEquipmentAndLoadMatrixAuth() {
@@ -635,8 +636,8 @@ public class EventSettingsActivity extends AppCompatActivity {
                             Log.d(TAG, "matrixAuth applied module=" + moduleType
                                     + " size=" + (authList != null ? authList.size() : 0)
                                     + " venue=" + sets.venueCodes
-                                    + " partition=" + sets.partitionCodes
-                                    + " zone=" + sets.zoneCodes);
+                                    + " area(区域)=" + sets.areaCodes
+                                    + " partition(分区)=" + sets.partitionCodes);
                         }
                         Toast.makeText(EventSettingsActivity.this,
                                 "已加载" + ModuleType.toLabel(moduleType) + "通行权限",
@@ -1086,12 +1087,14 @@ public class EventSettingsActivity extends AppCompatActivity {
         // 调用接口获取该活动的基础信息（需传设备 id）
         String eqpId = ensureDeviceCode();
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        retrofit2.Call<ResponseBody> call = apiService.getBasicInfo(eventCode, eqpId);
+        retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call =
+                apiService.getBasicInfo(eventCode, eqpId);
 
-        call.enqueue(new retrofit2.Callback<ResponseBody>() {
+        call.enqueue(new retrofit2.Callback<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>>() {
             @Override
-            public void onResponse(@NonNull retrofit2.Call<ResponseBody> call,
-                                   @NonNull retrofit2.Response<ResponseBody> response) {
+            public void onResponse(
+                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
+                    @NonNull retrofit2.Response<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> response) {
                 runOnUiThread(() -> {
                     if (!response.isSuccessful()) {
                         Toast.makeText(EventSettingsActivity.this,
@@ -1100,39 +1103,27 @@ public class EventSettingsActivity extends AppCompatActivity {
                         renderEventInfo();
                         return;
                     }
-
-                    try {
-                        String respText = response.body() != null ? response.body().string() : "";
-                        JSONObject json = new JSONObject(respText);
-                        if (json.optInt("code", -1) != 200) {
-                            Toast.makeText(EventSettingsActivity.this,
-                                    "基础信息获取失败：" + json.optString("message", "接口返回异常"),
-                                    Toast.LENGTH_SHORT).show();
-                            currentEventInfo = repository.getEventInfo();
-                            renderEventInfo();
-                            return;
-                        }
-
-                        // 保存基础信息
-                        try {
-                            repository.saveBaseInfo(baseUrl, respText);
-                            // 重新获取 EventInfo
-                            currentEventInfo = repository.getEventInfo();
-                            // 如果 EventInfo 为空或名称不对，手动设置活动名称
-                            if (currentEventInfo == null) {
-                                currentEventInfo = new EventInfo(activeName, new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-                            }
-                            renderEventInfo();
-                        } catch (Exception ex) {
-                            Toast.makeText(EventSettingsActivity.this,
-                                    "基础信息保存失败：" + ex.getMessage(),
-                                    Toast.LENGTH_SHORT).show();
-                            currentEventInfo = repository.getEventInfo();
-                            renderEventInfo();
-                        }
-                    } catch (Exception e) {
+                    ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO> apiResponse = response.body();
+                    if (apiResponse == null || !apiResponse.isSuccess() || apiResponse.getData() == null) {
                         Toast.makeText(EventSettingsActivity.this,
-                                "基础信息处理失败：" + e.getMessage(),
+                                "基础信息获取失败：" + (apiResponse != null
+                                        ? apiResponse.getMessage() : "接口返回异常"),
+                                Toast.LENGTH_SHORT).show();
+                        currentEventInfo = repository.getEventInfo();
+                        renderEventInfo();
+                        return;
+                    }
+                    try {
+                        repository.saveBaseInfo(baseUrl, apiResponse.getData());
+                        currentEventInfo = repository.getEventInfo();
+                        if (currentEventInfo == null) {
+                            currentEventInfo = new EventInfo(activeName, new ArrayList<>(),
+                                    new ArrayList<>(), new ArrayList<>());
+                        }
+                        renderEventInfo();
+                    } catch (Exception ex) {
+                        Toast.makeText(EventSettingsActivity.this,
+                                "基础信息保存失败：" + ex.getMessage(),
                                 Toast.LENGTH_SHORT).show();
                         currentEventInfo = repository.getEventInfo();
                         renderEventInfo();
@@ -1141,11 +1132,12 @@ public class EventSettingsActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFailure(@NonNull retrofit2.Call<ResponseBody> call, @NonNull Throwable t) {
+            public void onFailure(
+                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
+                    @NonNull Throwable t) {
                 runOnUiThread(() -> {
                     Toast.makeText(EventSettingsActivity.this,
                             "基础信息获取失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
-                    // 失败时使用默认逻辑
                     currentEventInfo = repository.getEventInfo();
                     renderEventInfo();
                 });

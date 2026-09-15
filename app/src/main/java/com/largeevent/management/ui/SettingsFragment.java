@@ -320,13 +320,13 @@ public class SettingsFragment extends Fragment {
                 ? selectedActiveId
                 : AppPreferences.getLastActiveId(requireContext());
         // 人证、车证须分别在活动设置中配置位置与分区
-        if (!isModuleLocationReady(activeIdForSave, ModuleType.PERSON)
-                || !isModuleLocationReady(activeIdForSave, ModuleType.VEHICLE)) {
-            Toast.makeText(requireContext(),
-                    "请在活动设置中分别切换「人证」「车证」并各选位置与分区（两项均必选）",
-                    Toast.LENGTH_LONG).show();
-            return;
-        }
+//        if (!isModuleLocationReady(activeIdForSave, ModuleType.PERSON)
+//                || !isModuleLocationReady(activeIdForSave, ModuleType.VEHICLE)) {
+//            Toast.makeText(requireContext(),
+//                    "请在活动设置中分别切换「人证」「车证」并各选位置与分区（两项均必选）",
+//                    Toast.LENGTH_LONG).show();
+//            return;
+//        }
 
         currentActiveIdForSave = activeIdForSave;
         int moduleType = ModuleType.normalize(pendingModuleType);
@@ -447,46 +447,48 @@ public class SettingsFragment extends Fragment {
     private void fetchBasicInfoWithEventCode(String baseUrl, String eventCode) {
         com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
         String eqpId = AppPreferences.ensureDeviceCode(requireContext());
-        retrofit2.Call<ResponseBody> call = apiService.getBasicInfo(eventCode, eqpId);
-        
-        call.enqueue(new retrofit2.Callback<ResponseBody>() {
+        retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call =
+                apiService.getBasicInfo(eventCode, eqpId);
+
+        call.enqueue(new retrofit2.Callback<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>>() {
             @Override
-            public void onResponse(@NonNull retrofit2.Call<ResponseBody> call, 
-                                   @NonNull retrofit2.Response<ResponseBody> response) {
+            public void onResponse(
+                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
+                    @NonNull retrofit2.Response<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> response) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     if (!response.isSuccessful()) {
                         Toast.makeText(requireContext(), "基础信息获取失败：服务器错误", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    
+                    ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO> apiResponse = response.body();
+                    if (apiResponse == null || !apiResponse.isSuccess()) {
+                        Toast.makeText(requireContext(), "基础信息获取失败："
+                                        + (apiResponse != null ? apiResponse.getMessage() : "接口返回异常"),
+                                Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    com.largeevent.management.network.dto.BasicInfoDTO data = apiResponse.getData();
+                    if (data == null) {
+                        Toast.makeText(requireContext(), "基础信息数据为空", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
                     try {
-                        String respText = response.body() != null ? response.body().string() : "";
-                        JSONObject json = new JSONObject(respText);
-                        if (json.optInt("code", -1) != 200) {
-                            Toast.makeText(requireContext(), "基础信息获取失败：" + json.optString("message", "接口返回异常"), Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                        // 保存基础信息
-                        try {
-                            repository.saveBaseInfo(baseUrl, respText);
-                        } catch (Exception ex) {
-                            Toast.makeText(requireContext(), "基础信息保存失败：" + ex.getMessage(), Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                        // 重新加载活动列表
+                        repository.saveBaseInfo(baseUrl, data);
                         loadActiveModelList();
-                        // 刷新当前活动显示
                         currentEventInfo = repository.getEventInfo();
                         Toast.makeText(requireContext(), "基础信息已刷新", Toast.LENGTH_SHORT).show();
-                    } catch (Exception e) {
-                        Toast.makeText(requireContext(), "基础信息处理失败：" + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    } catch (Exception ex) {
+                        Toast.makeText(requireContext(), "基础信息保存失败：" + ex.getMessage(),
+                                Toast.LENGTH_SHORT).show();
                     }
                 });
             }
 
             @Override
-            public void onFailure(@NonNull retrofit2.Call<ResponseBody> call, @NonNull Throwable t) {
+            public void onFailure(
+                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
+                    @NonNull Throwable t) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() ->
                         Toast.makeText(requireContext(), "基础信息获取失败：" + t.getMessage(), Toast.LENGTH_SHORT).show()

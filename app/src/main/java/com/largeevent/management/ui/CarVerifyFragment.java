@@ -826,14 +826,14 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
                     DevicePermissionHelper.resolveDevicePermissions(
                             requireContext(), currentActiveId, basicInfo, ModuleType.VEHICLE);
             Log.d(TAG, "设备权限(matrixAuth) venue=" + device.venueCodes
-                    + ", partition=" + device.partitionCodes
-                    + ", zone=" + device.zoneCodes);
+                    + ", area(区域)=" + device.areaCodes
+                    + ", partition(分区)=" + device.partitionCodes);
 
             // 车证：area=场馆，parkingArea=区域；无分区/分项时传空
             boolean matched = DevicePermissionHelper.certificateMatchesDevice(
                     carDTO.area,
-                    null,
                     carDTO.parkingArea,
+                    null,
                     null,
                     device,
                     true);
