@@ -1,9 +1,14 @@
 package com.largeevent.management.ui;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -48,6 +53,11 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
 
     private static final String TAG = "VehicleVerifyFragment";
     private static final String DEFAULT_REQUIRED_ZONE = "车辆区";
+    /** 手持机手柄键广播（实测：extras keyCode=137, keydown=true/false） */
+    private static final String ACTION_FUN_KEY = "android.rfid.FUN_KEY";
+    private static final int HANDLE_KEY_CODE = 137;
+    /** 手柄连发/长按防抖，与点按感应区一样只触发一次盘点 */
+    private static final long HANDLE_DEBOUNCE_MS = 600L;
 
     private TextView tvVehicleStatus;
     private Button btnVerify;
@@ -60,6 +70,8 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     private UHFRManager uhfManager;
     private ExecutorService inventoryExecutor;
     private Handler mainHandler;
+    private BroadcastReceiver funKeyReceiver;
+    private long lastHandleTriggerElapsedMs = 0L;
 
     @Nullable
     @Override
@@ -76,7 +88,11 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         inventoryExecutor = Executors.newSingleThreadExecutor();
         mainHandler = new Handler(Looper.getMainLooper());
 
-        view.findViewById(R.id.card_vehicle_rfid).setOnClickListener(v -> startUhfInventory());
+        view.findViewById(R.id.card_vehicle_rfid).setOnClickListener(v -> {
+            Log.i(TAG, "UI click card_vehicle_rfid → startUhfInventory()");
+            // 与手柄同一入口，保证盘点逻辑完全一致
+            startUhfInventory("ui_card_click");
+        });
         view.findViewById(R.id.tv_vehicle_history).setOnClickListener(v -> {
             Intent intent = new Intent(requireContext(), RecordActivity.class);
             intent.putExtra(CommonConfig.EXTRA_IS_CAR, true);
@@ -93,6 +109,78 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         super.onResume();
         // 每次页面显示时都检查初始化状态
         checkInitializationStatus();
+        registerFunKeyReceiver();
+    }
+
+    @Override
+    public void onPause() {
+        unregisterFunKeyReceiver();
+        super.onPause();
+    }
+
+    private void registerFunKeyReceiver() {
+        if (funKeyReceiver != null || getContext() == null) {
+            return;
+        }
+        funKeyReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent == null || !ACTION_FUN_KEY.equals(intent.getAction())) {
+                    return;
+                }
+                int keyCode = intent.getIntExtra("keyCode", -1);
+                boolean keyDown = intent.getBooleanExtra("keydown", false);
+                Log.i(TAG, "FUN_KEY received keyCode=" + keyCode + " keydown=" + keyDown);
+                // 仅接受实测手柄键；松开忽略。切到主线程，与点击感应区同一套 startUhfInventory
+                if (!keyDown || keyCode != HANDLE_KEY_CODE) {
+                    return;
+                }
+                if (mainHandler != null) {
+                    mainHandler.post(() -> startUhfInventoryFromHandle());
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter(ACTION_FUN_KEY);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                requireContext().registerReceiver(funKeyReceiver, filter, Context.RECEIVER_EXPORTED);
+            } else {
+                requireContext().registerReceiver(funKeyReceiver, filter);
+            }
+            Log.i(TAG, "FUN_KEY receiver registered");
+        } catch (Exception e) {
+            Log.w(TAG, "register FUN_KEY receiver failed", e);
+            funKeyReceiver = null;
+        }
+    }
+
+    private void unregisterFunKeyReceiver() {
+        if (funKeyReceiver == null) {
+            return;
+        }
+        Context context = getContext();
+        if (context != null) {
+            try {
+                context.unregisterReceiver(funKeyReceiver);
+                Log.i(TAG, "FUN_KEY receiver unregistered");
+            } catch (Exception e) {
+                Log.w(TAG, "unregister FUN_KEY receiver failed", e);
+            }
+        }
+        funKeyReceiver = null;
+    }
+
+    /**
+     * 手柄按下：防抖后走与点击感应区完全相同的盘点方法。
+     */
+    private void startUhfInventoryFromHandle() {
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastHandleTriggerElapsedMs < HANDLE_DEBOUNCE_MS) {
+            Log.d(TAG, "FUN_KEY debounced, ignore duplicate trigger");
+            return;
+        }
+        lastHandleTriggerElapsedMs = now;
+        startUhfInventory("handle_fun_key");
     }
 
     /**
@@ -117,7 +205,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
                 btnVerify.setText("开始核验");
             }
             if (tvVehicleStatus != null && tvVehicleStatus.getText().toString().contains("请先到首页")) {
-                tvVehicleStatus.setText("请点击上方按钮读取车证");
+                tvVehicleStatus.setText("请点击上方按钮或按手柄读取车证");
             }
         }
     }
@@ -145,24 +233,47 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     }
 
     private void startUhfInventory() {
-        // 检查是否已初始化
+        startUhfInventory("unspecified");
+    }
+
+    /**
+     * UHF 盘点唯一入口：界面点击感应区、手柄 FUN_KEY 都走这里，行为一致。
+     */
+    private void startUhfInventory(String source) {
+        if (!isAdded() || getContext() == null) {
+            Log.w(TAG, "startUhfInventory aborted, fragment not attached, source=" + source);
+            return;
+        }
+        if (inventoryExecutor == null || inventoryExecutor.isShutdown()) {
+            Log.w(TAG, "startUhfInventory aborted, executor unavailable, source=" + source);
+            return;
+        }
+        Log.i(TAG, "startUhfInventory source=" + source + " isReading=" + isReading);
+
         if (!isAppInitialized()) {
             Toast.makeText(requireContext(), "请先到首页完成初始化", Toast.LENGTH_LONG).show();
             return;
         }
 
         if (isReading) {
-            Toast.makeText(requireContext(), "正在读取中，请稍候...", Toast.LENGTH_SHORT).show();
+            // 手柄连发时静默忽略，避免刷 Toast；手动点按仍提示
+            if ("ui_card_click".equals(source)) {
+                Toast.makeText(requireContext(), "正在读取中，请稍候...", Toast.LENGTH_SHORT).show();
+            } else {
+                Log.d(TAG, "already reading, ignore source=" + source);
+            }
             return;
         }
         isReading = true;
-        tvVehicleStatus.setText("正在读取车证...");
+        if (tvVehicleStatus != null) {
+            tvVehicleStatus.setText("正在读取车证...");
+        }
         inventoryExecutor.execute(() -> {
             List<String> newEpcList = new ArrayList<>();
-            if (false){
+            if (false) {
                 //TODO 测试
                 newEpcList.add("E28011B0A503007A28B8EE2C");
-            }else{
+            } else {
                 if (!ensureUhfReady()) {
                     postInventoryResult(new ArrayList<>(), "UHF模块初始化失败");
                     return;
@@ -175,7 +286,8 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
                     if (tagInfos != null) {
                         for (Reader.TAGINFO info : tagInfos) {
                             String epc = bytesToHex(info.EpcId);
-                            if (!TextUtils.isEmpty(epc) && !newEpcList.contains(epc) && (epc.contains("e") || epc.contains("E"))) {
+                            if (!TextUtils.isEmpty(epc) && !newEpcList.contains(epc)
+                                    && (epc.contains("e") || epc.contains("E"))) {
                                 newEpcList.add(epc);
                             }
                         }
@@ -190,19 +302,29 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     }
 
     private void postInventoryResult(List<String> epcs, @Nullable String errorMsg) {
+        if (mainHandler == null) {
+            return;
+        }
         mainHandler.post(() -> {
             isReading = false;
+            if (!isAdded() || getContext() == null) {
+                return;
+            }
             currentEpcList.clear();
             currentEpcList.addAll(epcs);
             if (epcs.isEmpty()) {
-                tvVehicleStatus.setText("未读取到车证");
+                if (tvVehicleStatus != null) {
+                    tvVehicleStatus.setText("未读取到车证");
+                }
                 if (!TextUtils.isEmpty(errorMsg)) {
                     Toast.makeText(requireContext(), errorMsg, Toast.LENGTH_SHORT).show();
                 }
                 return;
             }
             currentChipId = epcs.get(0);
-            tvVehicleStatus.setText("已读取芯片：" + currentChipId);
+            if (tvVehicleStatus != null) {
+                tvVehicleStatus.setText("已读取芯片：" + currentChipId);
+            }
             if (!TextUtils.isEmpty(errorMsg)) {
                 Toast.makeText(requireContext(), errorMsg, Toast.LENGTH_SHORT).show();
             }
@@ -730,6 +852,8 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
 
     @Override
     public void onTagDetected(String tagId, String[] techList) {
+        Log.i(TAG, "onTagDetected(NFC) tagId=" + tagId
+                + " → 车证页收到 NFC，仅更新 chipId，不会触发 UHF。若要手柄读车证，需把按键接到 startUhfInventory()");
         currentChipId = tagId;
         if (tvVehicleStatus != null) {
             tvVehicleStatus.setText("已读取芯片：" + tagId);
@@ -738,6 +862,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
 
     @Override
     public void onDestroyView() {
+        unregisterFunKeyReceiver();
         super.onDestroyView();
         if (initializationRepository != null) {
             initializationRepository.close();

@@ -1,11 +1,16 @@
 package com.largeevent.management;
 
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
@@ -32,6 +37,8 @@ import com.largeevent.management.ui.CarVerifyFragment;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
+    /** 手柄/侧键/扫描键排查专用 TAG，logcat 过滤：HwTrigger */
+    private static final String HW_TAG = "HwTrigger";
     private static final String TAG_HOME = "tag_home";
     private static final String TAG_PERSON = "tag_person";
     private static final String TAG_VEHICLE = "tag_vehicle";
@@ -41,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private NfcManager nfcManager;
     private View statusBarPlaceholder;
     public UHFRManager mUhfrManager;//uhf
+    private BroadcastReceiver hardwareTriggerReceiver;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -102,11 +110,15 @@ public class MainActivity extends AppCompatActivity {
         
         // 处理启动 Intent（可能是 NFC Intent）
         handleNfcIntent(getIntent());
+        registerHardwareTriggerDebugReceiver();
+        Log.i(HW_TAG, "MainActivity ready. Filter logcat by tag=HwTrigger to trace handle-button.");
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        Log.i(HW_TAG, "onResume tab=" + getCurrentTabLabel()
+                + " fragment=" + describeCurrentFragment());
         if (nfcManager != null) {
             nfcManager.enableForegroundDispatch();
         }
@@ -121,9 +133,199 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        Log.i(HW_TAG, "onPause tab=" + getCurrentTabLabel());
         if (nfcManager != null) {
             nfcManager.disableForegroundDispatch();
         }
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event != null && (event.getAction() == KeyEvent.ACTION_DOWN
+                || event.getAction() == KeyEvent.ACTION_UP)) {
+            logHardwareKey("dispatchKeyEvent", event);
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        logHardwareKey("onKeyDown", event);
+        // 车证页：若收到手柄键，明确打日志（当前未绑定 UHF 读取）
+        if (isVehicleTabSelected()) {
+            Log.w(HW_TAG, "KEY on VEHICLE tab keyCode=" + keyCode
+                    + " name=" + KeyEvent.keyCodeToString(keyCode)
+                    + " → CarVerify 目前只响应界面点击 card_vehicle_rfid，未把手柄键接到 startUhfInventory()");
+        } else if (isPersonTabSelected()) {
+            Log.i(HW_TAG, "KEY on PERSON tab keyCode=" + keyCode
+                    + " → 人证读卡通常不靠按键，而是 NFC ReaderMode 检测到标签后回调 onTagDetected");
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        logHardwareKey("onKeyUp", event);
+        return super.onKeyUp(keyCode, event);
+    }
+
+    private void logHardwareKey(String where, KeyEvent event) {
+        if (event == null) {
+            return;
+        }
+        // 过滤掉常见导航/输入噪音，保留侧键/功能键/未知扫描键
+        int keyCode = event.getKeyCode();
+        boolean interesting = keyCode == KeyEvent.KEYCODE_UNKNOWN
+                || keyCode == KeyEvent.KEYCODE_BUTTON_L1
+                || keyCode == KeyEvent.KEYCODE_BUTTON_R1
+                || keyCode == KeyEvent.KEYCODE_BUTTON_L2
+                || keyCode == KeyEvent.KEYCODE_BUTTON_R2
+                || keyCode == KeyEvent.KEYCODE_BUTTON_MODE
+                || (keyCode >= KeyEvent.KEYCODE_F1 && keyCode <= KeyEvent.KEYCODE_F12)
+                || keyCode == KeyEvent.KEYCODE_SOFT_LEFT
+                || keyCode == KeyEvent.KEYCODE_SOFT_RIGHT
+                || keyCode == KeyEvent.KEYCODE_CAMERA
+                || keyCode == KeyEvent.KEYCODE_FOCUS
+                || keyCode == KeyEvent.KEYCODE_MEDIA_RECORD
+                || keyCode >= 280; // 不少 PDA 自定义扫描键 >= 280
+        if (!interesting && event.getAction() == KeyEvent.ACTION_DOWN) {
+            // 仍记录一次 ACTION_DOWN 的非过滤键，方便确认手柄是否映射成普通键
+            Log.d(HW_TAG, where + " (common) keyCode=" + keyCode
+                    + " name=" + KeyEvent.keyCodeToString(keyCode)
+                    + " scanCode=" + event.getScanCode()
+                    + " repeat=" + event.getRepeatCount()
+                    + " tab=" + getCurrentTabLabel()
+                    + " fragment=" + describeCurrentFragment());
+            return;
+        }
+        if (!interesting) {
+            return;
+        }
+        Log.i(HW_TAG, where
+                + " action=" + keyActionName(event.getAction())
+                + " keyCode=" + keyCode
+                + " name=" + KeyEvent.keyCodeToString(keyCode)
+                + " scanCode=" + event.getScanCode()
+                + " deviceId=" + event.getDeviceId()
+                + " source=0x" + Integer.toHexString(event.getSource())
+                + " flags=" + event.getFlags()
+                + " repeat=" + event.getRepeatCount()
+                + " tab=" + getCurrentTabLabel()
+                + " fragment=" + describeCurrentFragment());
+    }
+
+    private static String keyActionName(int action) {
+        switch (action) {
+            case KeyEvent.ACTION_DOWN:
+                return "DOWN";
+            case KeyEvent.ACTION_UP:
+                return "UP";
+            case KeyEvent.ACTION_MULTIPLE:
+                return "MULTIPLE";
+            default:
+                return String.valueOf(action);
+        }
+    }
+
+    private String getCurrentTabLabel() {
+        if (bottomNavigationView == null) {
+            return "unknown";
+        }
+        int id = bottomNavigationView.getSelectedItemId();
+        if (id == R.id.nav_home) {
+            return "home";
+        }
+        if (id == R.id.nav_person_verify) {
+            return "person";
+        }
+        if (id == R.id.nav_vehicle_verify) {
+            return "vehicle";
+        }
+        if (id == R.id.nav_settings) {
+            return "settings";
+        }
+        return "id=" + id;
+    }
+
+    private boolean isPersonTabSelected() {
+        return bottomNavigationView != null
+                && bottomNavigationView.getSelectedItemId() == R.id.nav_person_verify;
+    }
+
+    private boolean isVehicleTabSelected() {
+        return bottomNavigationView != null
+                && bottomNavigationView.getSelectedItemId() == R.id.nav_vehicle_verify;
+    }
+
+    private String describeCurrentFragment() {
+        Fragment fragment = getSupportFragmentManager().findFragmentById(R.id.fragment_container);
+        return fragment != null ? fragment.getClass().getSimpleName() : "null";
+    }
+
+    /**
+     * 部分 PDA 手柄不发 KeyEvent，而是发扫描/RFID 广播；这里只打日志，不消费。
+     */
+    private void registerHardwareTriggerDebugReceiver() {
+        if (hardwareTriggerReceiver != null) {
+            return;
+        }
+        hardwareTriggerReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent == null) {
+                    return;
+                }
+                String action = intent.getAction();
+                StringBuilder extras = new StringBuilder();
+                if (intent.getExtras() != null) {
+                    for (String key : intent.getExtras().keySet()) {
+                        Object value = intent.getExtras().get(key);
+                        extras.append(key).append('=')
+                                .append(value != null ? String.valueOf(value) : "null")
+                                .append("; ");
+                    }
+                }
+                Log.i(HW_TAG, "BROADCAST action=" + action
+                        + " tab=" + getCurrentTabLabel()
+                        + " fragment=" + describeCurrentFragment()
+                        + " extras=[" + extras + "]");
+            }
+        };
+        IntentFilter filter = new IntentFilter();
+        // 常见软扫描 / 手柄广播（仅调试）
+        filter.addAction("com.rfid.SCAN");
+        filter.addAction("com.rfid.SCAN_CMD");
+        filter.addAction("android.intent.ACTION_DECODE_DATA");
+        filter.addAction("com.symbol.datawedge.data_string");
+        filter.addAction("nlscan.action.SCANNER_RESULT");
+        filter.addAction("com.android.server.scannerservice.broadcast");
+        filter.addAction("scan.rcv.message");
+        filter.addAction("com.scan.onDecodeComplete");
+        filter.addAction("android.rfid.FUN_KEY");
+        filter.addAction("android.intent.action.FUN_KEY");
+        filter.addAction("com.rscja.scanner.action");
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(hardwareTriggerReceiver, filter, Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(hardwareTriggerReceiver, filter);
+            }
+            Log.i(HW_TAG, "hardware trigger broadcast receiver registered");
+        } catch (Exception e) {
+            Log.w(HW_TAG, "register hardware trigger receiver failed", e);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (hardwareTriggerReceiver != null) {
+            try {
+                unregisterReceiver(hardwareTriggerReceiver);
+            } catch (Exception ignored) {
+            }
+            hardwareTriggerReceiver = null;
+        }
+        super.onDestroy();
     }
 
     @Override
@@ -132,7 +334,11 @@ public class MainActivity extends AppCompatActivity {
         String action = intent != null ? intent.getAction() : "null";
         boolean hasNfcTag = intent != null && intent.hasExtra(android.nfc.NfcAdapter.EXTRA_TAG);
         Log.d(TAG, "onNewIntent called, intent action: " + action + ", has NFC tag: " + hasNfcTag);
-        
+        Log.i(HW_TAG, "onNewIntent action=" + action
+                + " hasNfcTag=" + hasNfcTag
+                + " tab=" + getCurrentTabLabel()
+                + " → 若 hasNfcTag=true，人证识别由 NFC Intent 触发");
+
         // 更新 Activity 的 Intent，这样 getIntent() 才能获取到新的 Intent
         setIntent(intent);
         // 处理 NFC Intent

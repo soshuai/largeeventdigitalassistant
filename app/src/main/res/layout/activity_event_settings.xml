@@ -173,7 +173,7 @@
                 android:background="#526EA1"
                 android:gravity="center"
                 android:padding="7dp"
-                android:text="权限列表（蓝色为已授权，不可手动选择）"
+                android:text="权限列表"
                 android:textColor="@color/white"
                 android:textSize="16sp"
                 android:textStyle="bold" />

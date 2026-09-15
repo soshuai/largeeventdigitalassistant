@@ -199,6 +199,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
 
     @Override
     public void onTagDetected(String tagId, String[] techList) {
+        Log.i(TAG, "onTagDetected(NFC) tagId=" + tagId + " → 触发源=NFC ReaderMode/Intent，不是界面按钮");
         Log.d(TAG, "onTagDetected called: tagId=" + tagId);
 
         // 检查 Fragment 是否已经 attach 到 Activity

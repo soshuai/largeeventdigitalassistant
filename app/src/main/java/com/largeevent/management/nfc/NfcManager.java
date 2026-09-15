@@ -143,7 +143,11 @@ public class NfcManager implements NfcAdapter.ReaderCallback {
         String tagId = bytesToHex(tagIdBytes);
         String[] techList = tag.getTechList();
         
-        Log.d(TAG, "Tag discovered via Reader Mode: ID=" + tagId + ", callback=" + (callback != null ? "set" : "null"));
+        Log.d(TAG, "Tag discovered via Reader Mode: ID=" + tagId
+                + ", callback=" + (callback != null ? callback.getClass().getSimpleName() : "null"));
+        Log.i("HwTrigger", "NFC_READER_MODE tagId=" + tagId
+                + " callback=" + (callback != null ? callback.getClass().getSimpleName() : "null")
+                + " → 人证页靠这条链路自动读卡；车证页收到也只会更新 chipId，不会启动 UHF");
         
         if (callback != null) {
             // 切换到主线程调用回调
