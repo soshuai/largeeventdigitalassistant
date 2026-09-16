@@ -73,7 +73,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     private BroadcastReceiver funKeyReceiver;
     private long lastHandleTriggerElapsedMs = 0L;
 
-    private final boolean test = true;
+    private final boolean test = false;
 
     @Nullable
     @Override
