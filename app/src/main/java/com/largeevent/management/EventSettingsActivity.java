@@ -489,7 +489,7 @@ public class EventSettingsActivity extends AppCompatActivity {
     }
 
     /**
-     * 位置与分区均选择后，按当前模块注册设备并拉取权限。
+     * 位置与分区均选择后：新组合先注册再拉权限；同一组合跳过注册，仍重新请求权限列表。
      */
     private void onLocationOrZoneChanged() {
         if (TextUtils.isEmpty(selectedLocationId) || TextUtils.isEmpty(selectedZoneId)) {
@@ -501,11 +501,25 @@ public class EventSettingsActivity extends AppCompatActivity {
         }
         if (AppPreferences.isDeviceAuthSynced(
                 this, currentActiveId, currentModuleType, selectedLocationId, selectedZoneId)) {
-            Log.d(TAG, "设备权限已同步，跳过注册 module=" + currentModuleType);
-            renderCachedMatrixAuthPermissions();
+            Log.d(TAG, "位置/分区未变，跳过注册，刷新权限列表 module=" + currentModuleType);
+            refreshMatrixAuthOnly();
             return;
         }
         registerEquipmentAndLoadMatrixAuth();
+    }
+
+    /** 已注册过的位置+分区：不重复注册，只重新拉 matrixAuth */
+    private void refreshMatrixAuthOnly() {
+        String eqpId = ensureDeviceCode();
+        if (TextUtils.isEmpty(eqpId)) {
+            Toast.makeText(this, "设备编号为空，无法获取权限", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        isRegistering = true;
+        Toast.makeText(this,
+                "正在刷新" + ModuleType.toLabel(currentModuleType) + "通行权限...",
+                Toast.LENGTH_SHORT).show();
+        fetchMatrixAuthInfo(eqpId, currentModuleType);
     }
 
     private void clearPermissionChips() {
@@ -600,9 +614,8 @@ public class EventSettingsActivity extends AppCompatActivity {
             public void onResponse(@NonNull retrofit2.Call<ResponseBody> call,
                                    @NonNull retrofit2.Response<ResponseBody> response) {
                 if (!response.isSuccessful()) {
-                    isRegistering = false;
-                    Toast.makeText(EventSettingsActivity.this,
-                            ModuleType.toLabel(moduleForRequest) + "设备注册失败", Toast.LENGTH_SHORT).show();
+                    onRegisterEquipmentFailed(moduleForRequest,
+                            ModuleType.toLabel(moduleForRequest) + "设备注册失败");
                     return;
                 }
                 fetchMatrixAuthInfo(eqpId, moduleForRequest);
@@ -610,12 +623,20 @@ public class EventSettingsActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(@NonNull retrofit2.Call<ResponseBody> call, @NonNull Throwable t) {
-                isRegistering = false;
-                Toast.makeText(EventSettingsActivity.this,
-                        ModuleType.toLabel(moduleForRequest) + "设备注册失败：" + t.getMessage(),
-                        Toast.LENGTH_SHORT).show();
+                onRegisterEquipmentFailed(moduleForRequest,
+                        ModuleType.toLabel(moduleForRequest) + "设备注册失败：" + t.getMessage());
             }
         });
+    }
+
+    /** 注册失败：清空当前模块权限展示与本地缓存，避免沿用上一组位置/分区的权限 */
+    private void onRegisterEquipmentFailed(int moduleType, String message) {
+        isRegistering = false;
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        AppPreferences.clearDeviceMatrixAuth(this, currentActiveId, moduleType);
+        if (moduleType == currentModuleType) {
+            clearPermissionChips();
+        }
     }
 
     private void fetchMatrixAuthInfo(String eqpId, int moduleType) {

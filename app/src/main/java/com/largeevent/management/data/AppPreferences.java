@@ -269,6 +269,23 @@ public class AppPreferences {
         return getPrefs(context).getString(scopedKey(KEY_DEVICE_MATRIX_JSON, activeId, module), null);
     }
 
+    /** 清空指定模块的设备权限缓存（注册失败时使用） */
+    public static void clearDeviceMatrixAuth(Context context, String activeId, int moduleType) {
+        if (TextUtils.isEmpty(activeId)) {
+            return;
+        }
+        int module = ModuleType.normalize(moduleType);
+        getPrefs(context).edit()
+                .remove(scopedKey(KEY_DEVICE_MATRIX_VENUE, activeId, module))
+                .remove(scopedKey(KEY_DEVICE_MATRIX_SPORT, activeId, module))
+                .remove(scopedKey(KEY_DEVICE_MATRIX_AREA, activeId, module))
+                .remove(scopedKey(KEY_DEVICE_MATRIX_PARTITION, activeId, module))
+                .remove(scopedKey(KEY_DEVICE_MATRIX_JSON, activeId, module))
+                .remove(scopedKey(KEY_DEVICE_PERM_CONFIGURED, activeId, module))
+                .remove(KEY_DEVICE_AUTH_SYNCED + activeId + "_m" + module)
+                .apply();
+    }
+
     /** @deprecated 使用带 moduleType 的重载 */
     public static void setDeviceMatrixAuthCodes(
             Context context,
@@ -474,8 +491,8 @@ public class AppPreferences {
      * 确保已有设备编码；为空时生成并持久化
      */
     public static String ensureDeviceCode(Context context) {
-//        String code = "DEV_1789136890654";
-        String code = getDeviceCode(context);
+        String code = "DEV_1789136890654";
+//        String code = getDeviceCode(context);
         if (TextUtils.isEmpty(code)) {
             code = "DEV_" + System.currentTimeMillis();
             setDeviceCode(context, code);

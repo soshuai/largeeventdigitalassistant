@@ -39,7 +39,7 @@ public final class MatrixAuthSelectionHelper {
         return map;
     }
 
-    /** 分区：venuePartition / venuePartitionVal */
+    /** 分区：code 用 venuePartition，展示名优先 name，其次 venuePartitionVal */
     public static LinkedHashMap<String, String> collectPartitionLabels(
             List<MatrixAuthInfoDTO> authList) {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
@@ -48,10 +48,23 @@ public final class MatrixAuthSelectionHelper {
         }
         for (MatrixAuthInfoDTO auth : authList) {
             if (auth != null) {
-                putLabeledTokens(map, auth.venuePartition, auth.venuePartitionVal);
+                putLabeledTokens(map, auth.venuePartition, firstNonEmpty(auth.name, auth.venuePartitionVal));
             }
         }
         return map;
+    }
+
+    @androidx.annotation.Nullable
+    private static String firstNonEmpty(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (!TextUtils.isEmpty(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     /** 区域：venueArea / venueAreaVal */
