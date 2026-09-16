@@ -85,7 +85,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     private ActiveUserBaseDTO currentUserDTO;  // 保存当前核验的用户数据
     private ExecutorService faceMatchExecutor;
 
-    private final boolean test = true;
+    private final boolean test = false;
 
     @Nullable
     @Override

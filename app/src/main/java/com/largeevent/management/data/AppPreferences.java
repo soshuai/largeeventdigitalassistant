@@ -491,8 +491,8 @@ public class AppPreferences {
      * 确保已有设备编码；为空时生成并持久化
      */
     public static String ensureDeviceCode(Context context) {
-        String code = "DEV_1789136890654";
-//        String code = getDeviceCode(context);
+//        String code = "DEV_1789136890654";
+        String code = getDeviceCode(context);
         if (TextUtils.isEmpty(code)) {
             code = "DEV_" + System.currentTimeMillis();
             setDeviceCode(context, code);
