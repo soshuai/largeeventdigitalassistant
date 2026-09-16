@@ -73,6 +73,8 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     private BroadcastReceiver funKeyReceiver;
     private long lastHandleTriggerElapsedMs = 0L;
 
+    private final boolean test = true;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -270,8 +272,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         }
         inventoryExecutor.execute(() -> {
             List<String> newEpcList = new ArrayList<>();
-            if (false) {
-                //TODO 测试
+            if (test) {
                 newEpcList.add("E28011B0A503007A28B8EE2C");
             } else {
                 if (!ensureUhfReady()) {

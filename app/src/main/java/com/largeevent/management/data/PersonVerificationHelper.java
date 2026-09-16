@@ -126,14 +126,19 @@ public final class PersonVerificationHelper {
                     "请先在活动设置中同时选择设备所在位置和设备所在分区");
         }
 
-        if (!DevicePermissionHelper.certificateMatchesDevice(
-                user.venuePrivileges,
-                user.areaPrivileges,
-                user.zonePrivileges,
-                user.sportPrivileges,
-                devicePermissions,
-                true)) {
-            return StepResult.fail(Step.PERMISSION_DENIED, "无权通行", "权限不足");
+        DevicePermissionHelper.MatchResult permissionMatch =
+                DevicePermissionHelper.evaluateCertificateMatch(
+                        user.venuePrivileges,
+                        user.areaPrivileges,
+                        user.zonePrivileges,
+                        user.sportPrivileges,
+                        devicePermissions,
+                        true,
+                        true);
+        if (!permissionMatch.matched) {
+            String detail = !TextUtils.isEmpty(permissionMatch.failReason)
+                    ? permissionMatch.failReason : "权限不足";
+            return StepResult.fail(Step.PERMISSION_DENIED, "无权通行", detail);
         }
 
         String mainType = user.mainAppTypeCode;
@@ -216,7 +221,8 @@ public final class PersonVerificationHelper {
 
     /**
      * 设备是否已配置：位置与分区两项均必选（AND），缺一不可。
-     * 通行权限勾选由 {@link DevicePermissionHelper#certificateMatchesDevice} 单独校验。
+     * 通行权限勾选由 {@link DevicePermissionHelper#certificateMatchesDevice} 单独校验；
+     * 人证场馆/区域/分区为空时跳过该维比对。
      */
     public static boolean isDeviceConfigured(Context context, String activeId) {
         return hasLocationAndZone(context, activeId);
@@ -449,7 +455,8 @@ public final class PersonVerificationHelper {
                 "yyyy-MM-dd HH:mm:ss",
                 "yyyy-MM-dd HH:mm",
                 "yyyy-MM-dd'T'HH:mm:ss",
-                "yyyy-MM-dd"
+                "yyyy-MM-dd",
+                "yyyyMMdd"
         };
         for (String pattern : patterns) {
             try {

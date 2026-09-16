@@ -8,17 +8,98 @@ import com.largeevent.management.network.dto.MatrixAuthInfoDTO;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * 将 getMatrixAuthInfoList 设备权限映射到活动设置页权限芯片。
+ * 将 getMatrixAuthInfoList / getCarMatrixAuthList 设备权限映射到活动设置页权限芯片。
  */
 public final class MatrixAuthSelectionHelper {
 
     private MatrixAuthSelectionHelper() {
+    }
+
+    /**
+     * 从 matrixAuth 列表收集场馆 code → 展示名（接口数据，不依赖 basicInfo 字典）。
+     */
+    public static LinkedHashMap<String, String> collectVenueLabels(
+            List<MatrixAuthInfoDTO> authList) {
+        LinkedHashMap<String, String> map = new LinkedHashMap<>();
+        if (authList == null) {
+            return map;
+        }
+        for (MatrixAuthInfoDTO auth : authList) {
+            if (auth != null) {
+                putLabeledTokens(map, auth.venue, auth.venueVal);
+            }
+        }
+        return map;
+    }
+
+    /** 分区：venuePartition / venuePartitionVal */
+    public static LinkedHashMap<String, String> collectPartitionLabels(
+            List<MatrixAuthInfoDTO> authList) {
+        LinkedHashMap<String, String> map = new LinkedHashMap<>();
+        if (authList == null) {
+            return map;
+        }
+        for (MatrixAuthInfoDTO auth : authList) {
+            if (auth != null) {
+                putLabeledTokens(map, auth.venuePartition, auth.venuePartitionVal);
+            }
+        }
+        return map;
+    }
+
+    /** 区域：venueArea / venueAreaVal */
+    public static LinkedHashMap<String, String> collectAreaLabels(
+            List<MatrixAuthInfoDTO> authList) {
+        LinkedHashMap<String, String> map = new LinkedHashMap<>();
+        if (authList == null) {
+            return map;
+        }
+        for (MatrixAuthInfoDTO auth : authList) {
+            if (auth != null) {
+                putLabeledTokens(map, auth.venueArea, auth.venueAreaVal);
+            }
+        }
+        return map;
+    }
+
+    private static void putLabeledTokens(
+            LinkedHashMap<String, String> map, @androidx.annotation.Nullable String codes,
+            @androidx.annotation.Nullable String labels) {
+        Set<String> codeSet = DevicePermissionHelper.splitPrivilegeTokens(codes);
+        List<String> labelParts = new java.util.ArrayList<>(
+                DevicePermissionHelper.splitPrivilegeTokens(labels));
+        if (codeSet.isEmpty()) {
+            for (String label : labelParts) {
+                if (!map.containsKey(label)) {
+                    map.put(label, label);
+                }
+            }
+            return;
+        }
+        int i = 0;
+        for (String code : codeSet) {
+            String label;
+            if (DevicePermissionHelper.isFullPrivilegeCode(code)) {
+                label = "全部";
+            } else if (i < labelParts.size() && !TextUtils.isEmpty(labelParts.get(i))) {
+                label = labelParts.get(i);
+            } else if (!TextUtils.isEmpty(labels) && labelParts.size() <= 1) {
+                label = labels.trim();
+            } else {
+                label = code;
+            }
+            if (!map.containsKey(code)) {
+                map.put(code, label);
+            }
+            i++;
+        }
     }
 
     public static void applyMatrixAuthToCheckboxes(

@@ -72,6 +72,21 @@ interface ApiService {
     ): Call<ApiResponse<MutableList<MatrixAuthInfoDTO?>?>?>?
 
     /**
+     * 获取车证设备通行权限（matrixAuth）。
+     * 入参、返参与 [getMatrixAuthInfoList] 一致。
+     *
+     * @param activityId 活动ID
+     * @param eqpId 设备ID
+     * @return [ApiResponse]；`data` = `List`&lt;[MatrixAuthInfoDTO]&gt; 权限项列表
+     * @see MatrixAuthInfoDTO
+     */
+    @GET("androidNew/api/getCarMatrixAuthList")
+    fun getCarMatrixAuthList(
+        @Query("activityId") activityId: String?,
+        @Query("eqpId") eqpId: String?
+    ): Call<ApiResponse<MutableList<MatrixAuthInfoDTO?>?>?>?
+
+    /**
      * 按芯片号查询活动人员/证件。
      *
      * @param activeId 活动ID（必填）

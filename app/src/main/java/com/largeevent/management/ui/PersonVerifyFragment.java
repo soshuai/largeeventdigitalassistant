@@ -85,7 +85,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     private ActiveUserBaseDTO currentUserDTO;  // 保存当前核验的用户数据
     private ExecutorService faceMatchExecutor;
 
-    private final boolean test = false;
+    private final boolean test = true;
 
     @Nullable
     @Override
@@ -634,7 +634,9 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             Log.d(TAG, "证件区域(areaPrivileges): " + info.areaPrivileges);
             Log.d(TAG, "证件分区(zonePrivileges): " + info.zonePrivileges);
 
-            boolean finalResult = DevicePermissionHelper.certificateMatchesDevice(info.venuePrivileges, info.areaPrivileges, info.zonePrivileges, info.sportPrivileges, device, true);
+            boolean finalResult = DevicePermissionHelper.certificateMatchesDevice(
+                    info.venuePrivileges, info.areaPrivileges, info.zonePrivileges,
+                    info.sportPrivileges, device, true, true);
 
             Log.i(TAG, "最终权限校验结果: " + (finalResult ? "通过" : "不通过"));
             return finalResult;

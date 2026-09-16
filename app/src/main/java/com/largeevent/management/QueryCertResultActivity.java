@@ -102,9 +102,9 @@ public class QueryCertResultActivity extends AppCompatActivity {
                 // 分区权限 ↔ zonePrivileges / personCertZoneList
                 String partitionNames = DevicePermissionHelper.resolvePrivilegeDisplayNames(
                         info.zonePrivileges, basicInfo.getPersonCertZoneList());
-                tvVenue.setText("场馆权限：" + displayOrDash(venueNames));
-                tvZone.setText("分区权限：" + displayOrDash(partitionNames));
-                tvArea.setText("区域权限：" + displayOrDash(areaNames));
+                tvVenue.setText("场馆权限：" + displayOrGranted(venueNames));
+                tvZone.setText("分区权限：" + displayOrGranted(partitionNames));
+                tvArea.setText("区域权限：" + displayOrGranted(areaNames));
             } else {
                 tvVenue.setText("场馆权限：" + safe(info.venuePrivileges));
                 tvZone.setText("分区权限：" + safe(info.zonePrivileges));
@@ -122,7 +122,7 @@ public class QueryCertResultActivity extends AppCompatActivity {
         return TextUtils.isEmpty(value) ? "--" : value;
     }
 
-    private static String displayOrDash(String value) {
-        return TextUtils.isEmpty(value) ? "--" : value;
+    private static String displayOrGranted(String value) {
+        return TextUtils.isEmpty(value) ? "有权限" : value;
     }
 }

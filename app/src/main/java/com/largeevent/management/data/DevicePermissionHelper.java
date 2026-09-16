@@ -2,6 +2,7 @@ package com.largeevent.management.data;
 
 import android.content.Context;
 import android.text.TextUtils;
+import android.util.Log;
 
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.BasicInfo.MatrixAuthInfo;
@@ -32,8 +33,27 @@ public final class DevicePermissionHelper {
     /** 后台「全部权限」通配码，与 ALL 等价 */
     public static final String CODE_ALL = "ALL";
     public static final String CODE_INF = "INF";
+    private static final String TAG = "DevicePermission";
 
     private DevicePermissionHelper() {
+    }
+
+    public static final class MatchResult {
+        public final boolean matched;
+        @Nullable public final String failReason;
+
+        MatchResult(boolean matched, @Nullable String failReason) {
+            this.matched = matched;
+            this.failReason = failReason;
+        }
+
+        static MatchResult ok() {
+            return new MatchResult(true, null);
+        }
+
+        static MatchResult fail(String reason) {
+            return new MatchResult(false, reason);
+        }
     }
 
     public static class PermissionSets {
@@ -56,22 +76,17 @@ public final class DevicePermissionHelper {
     }
 
     /**
-     * 解析设备通行权限：按人证/车证模块取 getMatrixAuthInfoList 缓存，
-     * 再回退 getBasicInfo.matrixAuthInfoList。
+     * 解析设备通行权限：仅使用注册成功后
+     * {@code getMatrixAuthInfoList} / {@code getCarMatrixAuthList} 的缓存。
+     * 不使用 getBasicInfo 中的场馆/分区/区域权限字典。
      */
     public static PermissionSets resolveDevicePermissions(
             Context context, String activeId, BasicInfo basicInfo, int moduleType) {
-        int module = ModuleType.normalize(moduleType);
-        if (!TextUtils.isEmpty(activeId)) {
-            PermissionSets cached = AppPreferences.getDeviceMatrixAuthCodes(context, activeId, module);
-            if (!cached.isEmpty()) {
-                return cached;
-            }
+        if (TextUtils.isEmpty(activeId)) {
+            return new PermissionSets();
         }
-        if (basicInfo != null) {
-            return fromMatrixAuthInfoList(basicInfo.getMatrixAuthInfoList());
-        }
-        return new PermissionSets();
+        return AppPreferences.getDeviceMatrixAuthCodes(
+                context, activeId, ModuleType.normalize(moduleType));
     }
 
     public static PermissionSets resolveDevicePermissions(
@@ -166,11 +181,42 @@ public final class DevicePermissionHelper {
             @Nullable String sportPrivileges,
             PermissionSets device,
             boolean strictEmptyDevice) {
-        if (device == null) {
-            return !strictEmptyDevice;
-        }
-        if (device.isEmpty()) {
-            return !strictEmptyDevice;
+        return certificateMatchesDevice(
+                venuePrivileges, areaPrivileges, zonePrivileges, sportPrivileges,
+                device, strictEmptyDevice, false);
+    }
+
+    /**
+     * @param skipEmptyCertPrivileges true 时证件场馆/区域/分区为空则跳过该维比对（视为有权限）
+     */
+    public static boolean certificateMatchesDevice(
+            String venuePrivileges,
+            String areaPrivileges,
+            String zonePrivileges,
+            @Nullable String sportPrivileges,
+            PermissionSets device,
+            boolean strictEmptyDevice,
+            boolean skipEmptyCertPrivileges) {
+        return evaluateCertificateMatch(
+                venuePrivileges, areaPrivileges, zonePrivileges, sportPrivileges,
+                device, strictEmptyDevice, skipEmptyCertPrivileges).matched;
+    }
+
+    /**
+     * 与 {@link #certificateMatchesDevice} 相同比对，并返回失败原因（供核验页展示与日志）。
+     */
+    public static MatchResult evaluateCertificateMatch(
+            String venuePrivileges,
+            String areaPrivileges,
+            String zonePrivileges,
+            @Nullable String sportPrivileges,
+            PermissionSets device,
+            boolean strictEmptyDevice,
+            boolean skipEmptyCertPrivileges) {
+        if (device == null || device.isEmpty()) {
+            Log.w(TAG, "权限比对: 设备场馆/区域/分区/分项均为空, strictEmptyDevice="
+                    + strictEmptyDevice);
+            return strictEmptyDevice ? MatchResult.fail("设备通行权限未配置") : MatchResult.ok();
         }
 
         Set<String> certVenues = splitPrivileges(venuePrivileges);
@@ -178,20 +224,41 @@ public final class DevicePermissionHelper {
         Set<String> certPartitions = splitPrivileges(zonePrivileges);
         Set<String> certSports = splitPrivileges(sportPrivileges);
 
-        boolean venueOk = device.venueCodes.isEmpty()
-                || hasFullPrivilege(certVenues)
-                || intersects(certVenues, device.venueCodes);
-        boolean sportOk = device.sportCodes.isEmpty()
-                || hasFullPrivilege(certSports)
-                || intersects(certSports, device.sportCodes);
-        boolean areaOk = device.areaCodes.isEmpty()
-                || hasFullPrivilege(certAreas)
-                || intersects(certAreas, device.areaCodes);
-        boolean partitionOk = device.partitionCodes.isEmpty()
-                || hasFullPrivilege(certPartitions)
-                || intersects(certPartitions, device.partitionCodes);
+        boolean venueOk = matchesPrivilegeDimension(
+                certVenues, device.venueCodes, skipEmptyCertPrivileges);
+        boolean sportOk = matchesPrivilegeDimension(
+                certSports, device.sportCodes, skipEmptyCertPrivileges);
+        boolean areaOk = matchesPrivilegeDimension(
+                certAreas, device.areaCodes, skipEmptyCertPrivileges);
+        boolean partitionOk = matchesPrivilegeDimension(
+                certPartitions, device.partitionCodes, skipEmptyCertPrivileges);
 
-        return venueOk && sportOk && areaOk && partitionOk;
+        List<String> failed = new ArrayList<>();
+        if (!venueOk) {
+            failed.add("场馆");
+        }
+        if (!sportOk) {
+            failed.add("分项");
+        }
+        if (!areaOk) {
+            failed.add("区域");
+        }
+        if (!partitionOk) {
+            failed.add("分区");
+        }
+
+        String summary = "人证权限比对 " + (failed.isEmpty() ? "通过" : ("不通过，失败维度=" + failed))
+                + " skipEmptyCert=" + skipEmptyCertPrivileges
+                + "\n  设备场馆=" + device.venueCodes + " 证件场馆=[" + venuePrivileges + "] ok=" + venueOk
+                + "\n  设备分项=" + device.sportCodes + " 证件分项=[" + sportPrivileges + "] ok=" + sportOk
+                + "\n  设备区域=" + device.areaCodes + " 证件区域=[" + areaPrivileges + "] ok=" + areaOk
+                + "\n  设备分区=" + device.partitionCodes + " 证件分区=[" + zonePrivileges + "] ok=" + partitionOk;
+        if (failed.isEmpty()) {
+            Log.i(TAG, summary);
+            return MatchResult.ok();
+        }
+        Log.w(TAG, summary);
+        return MatchResult.fail(TextUtils.join("、", failed) + "权限不足");
     }
 
     /** @deprecated 使用带 sportPrivileges 的重载 */
@@ -294,6 +361,20 @@ public final class DevicePermissionHelper {
         return CODE_ALL.equalsIgnoreCase(c) || CODE_INF.equalsIgnoreCase(c);
     }
 
+    /**
+     * 设备该维未配置或为 ALL/INF 则不限制；证件该维为空且 skipEmptyCert 时视为有权限。
+     */
+    private static boolean matchesPrivilegeDimension(
+            Set<String> certCodes, Set<String> deviceCodes, boolean skipEmptyCert) {
+        if (deviceCodes == null || deviceCodes.isEmpty() || hasFullPrivilege(deviceCodes)) {
+            return true;
+        }
+        if (skipEmptyCert && (certCodes == null || certCodes.isEmpty())) {
+            return true;
+        }
+        return hasFullPrivilege(certCodes) || intersects(certCodes, deviceCodes);
+    }
+
     private static boolean hasFullPrivilege(Set<String> codes) {
         if (codes == null || codes.isEmpty()) {
             return false;
@@ -307,9 +388,17 @@ public final class DevicePermissionHelper {
     }
 
     private static boolean intersects(Set<String> certSet, Set<String> deviceSet) {
-        for (String code : deviceSet) {
-            if (certSet.contains(code)) {
-                return true;
+        if (certSet == null || deviceSet == null || certSet.isEmpty() || deviceSet.isEmpty()) {
+            return false;
+        }
+        for (String deviceCode : deviceSet) {
+            if (TextUtils.isEmpty(deviceCode)) {
+                continue;
+            }
+            for (String certCode : certSet) {
+                if (!TextUtils.isEmpty(certCode) && deviceCode.equalsIgnoreCase(certCode)) {
+                    return true;
+                }
             }
         }
         return false;

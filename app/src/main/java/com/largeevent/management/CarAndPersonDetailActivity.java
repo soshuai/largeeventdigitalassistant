@@ -375,7 +375,7 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
 
     private String formatPermissionLine(String label, String displayNames) {
         if (TextUtils.isEmpty(displayNames)) {
-            return label + "无权限";
+            return label + "有权限";
         }
         return label + displayNames;
     }

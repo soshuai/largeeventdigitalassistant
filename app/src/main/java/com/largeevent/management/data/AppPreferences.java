@@ -28,6 +28,8 @@ public class AppPreferences {
     private static final String KEY_DEVICE_MATRIX_AREA = "key_device_matrix_area";
     /** 分区权限（venuePartition / zonePrivileges） */
     private static final String KEY_DEVICE_MATRIX_PARTITION = "key_device_matrix_partition";
+    /** 最近一次 getMatrixAuthInfoList / getCarMatrixAuthList 原始 JSON（展示用） */
+    private static final String KEY_DEVICE_MATRIX_JSON = "key_device_matrix_json";
     private static final String KEY_ACTIVATION_CHECK = "key_activation_check_enabled";
     private static final String KEY_EQP_TYPE = "key_eqp_type";
     private static final String KEY_SUB_UNIT = "key_sub_unit_name";
@@ -246,6 +248,27 @@ public class AppPreferences {
                 .apply();
     }
 
+    /** 缓存 matrixAuth 列表 JSON，供设置页按接口数据展示权限芯片 */
+    public static void setDeviceMatrixAuthJson(
+            Context context, String activeId, int moduleType, @Nullable String json) {
+        if (TextUtils.isEmpty(activeId)) {
+            return;
+        }
+        int module = ModuleType.normalize(moduleType);
+        getPrefs(context).edit()
+                .putString(scopedKey(KEY_DEVICE_MATRIX_JSON, activeId, module), json == null ? "" : json)
+                .apply();
+    }
+
+    @Nullable
+    public static String getDeviceMatrixAuthJson(Context context, String activeId, int moduleType) {
+        if (TextUtils.isEmpty(activeId)) {
+            return null;
+        }
+        int module = ModuleType.normalize(moduleType);
+        return getPrefs(context).getString(scopedKey(KEY_DEVICE_MATRIX_JSON, activeId, module), null);
+    }
+
     /** @deprecated 使用带 moduleType 的重载 */
     public static void setDeviceMatrixAuthCodes(
             Context context,
@@ -451,7 +474,8 @@ public class AppPreferences {
      * 确保已有设备编码；为空时生成并持久化
      */
     public static String ensureDeviceCode(Context context) {
-        String code = getDeviceCode(context);
+        String code = "DEV_1789136890654";
+//        String code = getDeviceCode(context);
         if (TextUtils.isEmpty(code)) {
             code = "DEV_" + System.currentTimeMillis();
             setDeviceCode(context, code);

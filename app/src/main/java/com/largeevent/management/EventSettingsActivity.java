@@ -26,9 +26,10 @@ import com.largeevent.management.data.InitializationRepository;
 import com.largeevent.management.data.DevicePermissionHelper;
 import com.largeevent.management.data.MatrixAuthSelectionHelper;
 import com.largeevent.management.data.ModuleType;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.BasicInfo.LocationInfo;
-import com.largeevent.management.model.BasicInfo.VenueInfo;
 import com.largeevent.management.model.EventInfo;
 import com.largeevent.management.model.EventSession;
 
@@ -42,9 +43,11 @@ import com.largeevent.management.widget.FlowLayout;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.IOException;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import okhttp3.Call;
@@ -237,26 +240,15 @@ public class EventSettingsActivity extends AppCompatActivity {
             suppressModuleCallback = false;
             suppressSpinnerCallback = false;
 
-            populateVenuePermissions(basicInfo, null);
-            // 分区权限 ← personCertZoneList；区域权限 ← personCertAreaList
-            populateDictPermissions(basicInfo.getPersonCertZoneList(), null,
-                    containerPartitionPermissions, partitionPermissionChips);
-            populateDictPermissions(basicInfo.getPersonCertAreaList(), null,
-                    containerCertZonePermissions, certZonePermissionChips);
-            highlightMatrixAuthPermissions();
+            // 权限芯片只来自 matrixAuth 接口缓存，不使用 basicInfo 字典
+            renderCachedMatrixAuthPermissions();
+            onLocationOrZoneChanged();
 
             if (switchActivationCheck != null) {
                 switchActivationCheck.setChecked(false);
             }
         } else {
-            if (currentEventInfo != null && currentEventInfo.getVenuePermissions() != null) {
-                for (String permission : currentEventInfo.getVenuePermissions()) {
-                    TextView chip = createPermissionChip(permission, null);
-                    MatrixAuthSelectionHelper.setChipSelected(chip, false);
-                    containerVenuePermissions.addView(chip);
-                    venuePermissionChips.add(chip);
-                }
-            }
+            clearPermissionChips();
         }
     }
 
@@ -355,8 +347,8 @@ public class EventSettingsActivity extends AppCompatActivity {
                 setupLocationSpinner();
                 setupZoneSpinner();
                 suppressSpinnerCallback = false;
-                // 先按当前模块缓存刷新勾选，再决定是否重新拉权限
-                highlightMatrixAuthPermissions();
+                // 先展示当前模块已缓存的 matrixAuth，未同步则重新注册拉取
+                renderCachedMatrixAuthPermissions();
                 onLocationOrZoneChanged();
                 Toast.makeText(EventSettingsActivity.this,
                         "已切换至" + ModuleType.toLabel(currentModuleType)
@@ -501,6 +493,7 @@ public class EventSettingsActivity extends AppCompatActivity {
      */
     private void onLocationOrZoneChanged() {
         if (TextUtils.isEmpty(selectedLocationId) || TextUtils.isEmpty(selectedZoneId)) {
+            clearPermissionChips();
             return;
         }
         if (TextUtils.isEmpty(currentActiveId) || isRegistering) {
@@ -509,48 +502,81 @@ public class EventSettingsActivity extends AppCompatActivity {
         if (AppPreferences.isDeviceAuthSynced(
                 this, currentActiveId, currentModuleType, selectedLocationId, selectedZoneId)) {
             Log.d(TAG, "设备权限已同步，跳过注册 module=" + currentModuleType);
-            highlightMatrixAuthPermissions();
+            renderCachedMatrixAuthPermissions();
             return;
         }
         registerEquipmentAndLoadMatrixAuth();
     }
 
-    /**
-     * 填充场馆权限（从 venueInfoList 获取）
-     */
-    private void populateVenuePermissions(BasicInfo basicInfo, Set<String> savedVenues) {
-        populateDictPermissions(basicInfo.getVenueInfoList(), savedVenues,
-                containerVenuePermissions, venuePermissionChips);
+    private void clearPermissionChips() {
+        containerVenuePermissions.removeAllViews();
+        containerPartitionPermissions.removeAllViews();
+        containerCertZonePermissions.removeAllViews();
+        venuePermissionChips.clear();
+        partitionPermissionChips.clear();
+        certZonePermissionChips.clear();
     }
 
-    /**
-     * 填充字典类权限选项（场馆/分区/区域）——只读芯片展示
-     */
-    private void populateDictPermissions(List<VenueInfo> dictList, Set<String> savedSelections,
-                                         FlowLayout container, List<TextView> chipList) {
-        if (dictList == null || dictList.isEmpty()) {
-            return;
-        }
-        for (VenueInfo item : dictList) {
-            if (item != null && !TextUtils.isEmpty(item.dictValue)) {
-                TextView chip = createPermissionChip(item.dictValue, item.dictCode);
-                MatrixAuthSelectionHelper.setChipSelected(chip, false);
-                container.addView(chip);
-                chipList.add(chip);
-            }
-        }
-    }
-
-    /** 用当前模块已缓存的 matrixAuth 勾选展示（仍不可手动改） */
-    private void highlightMatrixAuthPermissions() {
+    /** 用当前模块缓存的 matrixAuth 列表渲染权限芯片（全部为设备已有权限） */
+    private void renderCachedMatrixAuthPermissions() {
+        List<MatrixAuthInfoDTO> authList = loadCachedMatrixAuthList();
+        bindPermissionChipsFromAuthList(authList);
         DevicePermissionHelper.PermissionSets sets = AppPreferences.getDeviceMatrixAuthCodes(
                 this, currentActiveId, currentModuleType);
-        MatrixAuthSelectionHelper.applyPermissionSets(
-                venuePermissionChips, partitionPermissionChips, certZonePermissionChips, sets);
-        Log.d(TAG, "highlightMatrixAuth module=" + currentModuleType
+        Log.d(TAG, "render matrixAuth module=" + currentModuleType
+                + " size=" + (authList != null ? authList.size() : 0)
                 + " venue=" + sets.venueCodes
                 + " area(区域)=" + sets.areaCodes
                 + " partition(分区)=" + sets.partitionCodes);
+    }
+
+    @Nullable
+    private List<MatrixAuthInfoDTO> loadCachedMatrixAuthList() {
+        String json = AppPreferences.getDeviceMatrixAuthJson(
+                this, currentActiveId, currentModuleType);
+        if (TextUtils.isEmpty(json)) {
+            return null;
+        }
+        try {
+            Type type = new TypeToken<List<MatrixAuthInfoDTO>>() {
+            }.getType();
+            return new Gson().fromJson(json, type);
+        } catch (Exception e) {
+            Log.w(TAG, "parse cached matrixAuth json failed", e);
+            return null;
+        }
+    }
+
+    private void bindPermissionChipsFromAuthList(@Nullable List<MatrixAuthInfoDTO> authList) {
+        clearPermissionChips();
+        if (authList == null || authList.isEmpty()) {
+            return;
+        }
+        addSelectedChips(
+                MatrixAuthSelectionHelper.collectVenueLabels(authList),
+                containerVenuePermissions, venuePermissionChips);
+        addSelectedChips(
+                MatrixAuthSelectionHelper.collectPartitionLabels(authList),
+                containerPartitionPermissions, partitionPermissionChips);
+        addSelectedChips(
+                MatrixAuthSelectionHelper.collectAreaLabels(authList),
+                containerCertZonePermissions, certZonePermissionChips);
+    }
+
+    private void addSelectedChips(
+            LinkedHashMap<String, String> labeledCodes,
+            FlowLayout container,
+            List<TextView> chipList) {
+        if (labeledCodes == null || labeledCodes.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : labeledCodes.entrySet()) {
+            String label = !TextUtils.isEmpty(entry.getValue()) ? entry.getValue() : entry.getKey();
+            TextView chip = createPermissionChip(label, entry.getKey());
+            MatrixAuthSelectionHelper.setChipSelected(chip, true);
+            container.addView(chip);
+            chipList.add(chip);
+        }
     }
 
     private void registerEquipmentAndLoadMatrixAuth() {
@@ -594,8 +620,12 @@ public class EventSettingsActivity extends AppCompatActivity {
 
     private void fetchMatrixAuthInfo(String eqpId, int moduleType) {
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        apiService.getMatrixAuthInfoList(currentActiveId, eqpId)
-                .enqueue(new retrofit2.Callback<ApiResponse<java.util.List<MatrixAuthInfoDTO>>>() {
+        // 人证走 getMatrixAuthInfoList，车证走 getCarMatrixAuthList；入参返参与后续处理相同
+        retrofit2.Call<ApiResponse<java.util.List<MatrixAuthInfoDTO>>> authCall =
+                moduleType == ModuleType.VEHICLE
+                        ? apiService.getCarMatrixAuthList(currentActiveId, eqpId)
+                        : apiService.getMatrixAuthInfoList(currentActiveId, eqpId);
+        authCall.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<MatrixAuthInfoDTO>>>() {
                     @Override
                     public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<MatrixAuthInfoDTO>>> call,
                                            @NonNull retrofit2.Response<ApiResponse<java.util.List<MatrixAuthInfoDTO>>> response) {
@@ -617,6 +647,13 @@ public class EventSettingsActivity extends AppCompatActivity {
                                 DevicePermissionHelper.fromMatrixAuthDtoList(authList);
                         AppPreferences.setDeviceMatrixAuthCodes(
                                 EventSettingsActivity.this, currentActiveId, moduleType, sets);
+                        try {
+                            AppPreferences.setDeviceMatrixAuthJson(
+                                    EventSettingsActivity.this, currentActiveId, moduleType,
+                                    new Gson().toJson(authList));
+                        } catch (Exception e) {
+                            Log.w(TAG, "cache matrixAuth json failed", e);
+                        }
                         AppPreferences.setDevicePermissionConfigured(
                                 EventSettingsActivity.this, currentActiveId, moduleType,
                                 sets.hasAnyConfigured());
@@ -626,13 +663,7 @@ public class EventSettingsActivity extends AppCompatActivity {
                                     selectedLocationId, selectedZoneId);
                         }
                         if (moduleType == currentModuleType) {
-                            // 字典外场馆也补进列表，保证能勾选展示
-                            appendMissingVenueCheckboxes(authList);
-                            MatrixAuthSelectionHelper.applyMatrixAuthToCheckboxes(
-                                    authList,
-                                    venuePermissionChips,
-                                    partitionPermissionChips,
-                                    certZonePermissionChips);
+                            bindPermissionChipsFromAuthList(authList);
                             Log.d(TAG, "matrixAuth applied module=" + moduleType
                                     + " size=" + (authList != null ? authList.size() : 0)
                                     + " venue=" + sets.venueCodes
@@ -652,41 +683,6 @@ public class EventSettingsActivity extends AppCompatActivity {
                                 "获取设备权限失败：" + t.getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 });
-    }
-
-    /**
-     * 设备权限里的场馆 code 若不在 getBasicInfo.venueInfoList，补充勾选项（如 SGG、INF）。
-     */
-    private void appendMissingVenueCheckboxes(java.util.List<MatrixAuthInfoDTO> authList) {
-        if (authList == null) {
-            return;
-        }
-        java.util.Set<String> existingCodes = new java.util.HashSet<>();
-        for (TextView chip : venuePermissionChips) {
-            if (chip != null && chip.getTag() != null) {
-                existingCodes.add(String.valueOf(chip.getTag()).trim());
-            }
-        }
-        java.util.Set<String> dictCodes = new java.util.HashSet<>(existingCodes);
-        BasicInfo basicInfo = repository.getBasicInfo();
-        if (basicInfo != null && basicInfo.getVenueInfoList() != null) {
-            for (BasicInfo.VenueInfo v : basicInfo.getVenueInfoList()) {
-                if (v != null && !TextUtils.isEmpty(v.dictCode)) {
-                    dictCodes.add(v.dictCode.trim());
-                }
-            }
-        }
-        java.util.Map<String, String> missing =
-                MatrixAuthSelectionHelper.collectVenueCodesNotInDict(authList, dictCodes);
-        for (java.util.Map.Entry<String, String> entry : missing.entrySet()) {
-            if (existingCodes.contains(entry.getKey())) {
-                continue;
-            }
-            TextView chip = createPermissionChip(entry.getValue(), entry.getKey());
-            MatrixAuthSelectionHelper.setChipSelected(chip, true);
-            containerVenuePermissions.addView(chip);
-            venuePermissionChips.add(chip);
-        }
     }
 
     private EquipmentRegisterDTO buildEquipmentRegisterDTO(String eqpId, int moduleType) {
