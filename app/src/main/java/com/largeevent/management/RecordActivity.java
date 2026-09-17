@@ -45,8 +45,6 @@ import retrofit2.Response;
 public class RecordActivity extends AppCompatActivity {
 
     private static final String TAG = "VerificationRecord";
-    private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault());
-    private final SimpleDateFormat apiSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
     private final SimpleDateFormat apiDateSdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
 
     private Spinner spinnerRecordType;
@@ -65,8 +63,6 @@ public class RecordActivity extends AppCompatActivity {
     private String selectedRecordType = "人证核验"; // null表示全部, "人证核验", "车证核验"
     /** null=全部；1=核验成功；0=核验失败 */
     private Integer selectedVerifyStatus = null;
-    /** 车证筛选：null=全部，0=失败，1=成功 */
-    private Integer selectedCarCheckStatus = null;
     private int selectedDateRangePos = 0; // 0=全部, 1=今天, 2=近7天, 3=近30天
     
     // 分页参数
@@ -145,7 +141,6 @@ public class RecordActivity extends AppCompatActivity {
         // 重置按钮
         btnReset.setOnClickListener(v -> {
             selectedVerifyStatus = null;
-            selectedCarCheckStatus = null;
             selectedRecordType = showCar?"车证核验":"人证核验";
             selectedDateRangePos = 0;
             spinnerRecordType.setSelection(showCar?1:0);
@@ -186,13 +181,7 @@ public class RecordActivity extends AppCompatActivity {
         selectedRecordType = recordTypePos == 0 ? "人证核验" : "车证核验";
 
         int resultTypePos = spinnerResultType.getSelectedItemPosition();
-        if ("人证核验".equals(selectedRecordType)) {
-            selectedVerifyStatus = resultTypePos == 0 ? null : (resultTypePos == 1 ? 1 : 0);
-            selectedCarCheckStatus = null;
-        } else {
-            selectedVerifyStatus = null;
-            selectedCarCheckStatus = resultTypePos == 0 ? null : (resultTypePos == 1 ? 1 : 0);
-        }
+        selectedVerifyStatus = resultTypePos == 0 ? null : (resultTypePos == 1 ? 1 : 0);
 
         selectedDateRangePos = spinnerDateRange.getSelectedItemPosition();
 
@@ -304,12 +293,15 @@ public class RecordActivity extends AppCompatActivity {
         isLoadingCar = true;
         
         CarCertificateCheckPageDTO pageDTO = new CarCertificateCheckPageDTO();
-        pageDTO.current = currentCarPage;
-        pageDTO.size = 10L;
-        pageDTO.checkStatus = selectedCarCheckStatus;
-        
-        // 根据日期范围设置 beginTime 和 endTime
-        String[] dateRange = calculateDateRange(selectedDateRangePos);
+        pageDTO.current = (int) currentCarPage;
+        pageDTO.size = 10;
+        pageDTO.verifyStatus = selectedVerifyStatus;
+        pageDTO.activityId = AppPreferences.getLastActiveId(this);
+        if (TextUtils.isEmpty(pageDTO.activityId)) {
+            pageDTO.activityId = null;
+        }
+
+        String[] dateRange = calculatePersonDateRange(selectedDateRangePos);
         pageDTO.beginTime = dateRange[0];
         pageDTO.endTime = dateRange[1];
         
@@ -329,19 +321,20 @@ public class RecordActivity extends AppCompatActivity {
                         // 保存总记录数
                         carTotalRecords = pageResult.total;
                         
-                        if (pageResult.records != null && !pageResult.records.isEmpty()) {
+                        List<CarCertificateCheckModel> records = copyCarRecords(pageResult.records);
+                        if (!records.isEmpty()) {
+                            List<CarCertificateCheckModel> finalRecords = records;
                             runOnUiThread(() -> {
-                                allRecords.addAll(pageResult.records);
+                                allRecords.addAll(finalRecords);
                                 adapter.notifyDataSetChanged();
                                 updateRecordCount();
                             });
                         } else {
-                            // 没有更多数据
                             hasMoreCarRecords = false;
                         }
-                        
-                        // 检查是否还有更多数据
-                        if (pageResult.records == null || pageResult.records.size() < pageDTO.size) {
+
+                        int rawSize = pageResult.records != null ? pageResult.records.size() : 0;
+                        if (rawSize < pageDTO.size) {
                             hasMoreCarRecords = false;
                         }
                         
@@ -372,6 +365,20 @@ public class RecordActivity extends AppCompatActivity {
         return list;
     }
 
+    private static List<CarCertificateCheckModel> copyCarRecords(
+            @Nullable List<? extends CarCertificateCheckModel> source) {
+        List<CarCertificateCheckModel> list = new ArrayList<>();
+        if (source == null) {
+            return list;
+        }
+        for (CarCertificateCheckModel item : source) {
+            if (item != null) {
+                list.add(item);
+            }
+        }
+        return list;
+    }
+
     private void updateRecordCount() {
         long totalRecords = 0L;
         if ("人证核验".equals(selectedRecordType)) {
@@ -393,10 +400,6 @@ public class RecordActivity extends AppCompatActivity {
      * @param dateRangePos 0=全部, 1=今天, 2=近7天, 3=近30天
      * @return String[]{beginTime, endTime}, 全部时返回 {null, null}
      */
-    private String[] calculateDateRange(int dateRangePos) {
-        return calculateDateRange(dateRangePos, apiSdf);
-    }
-
     private String[] calculateDateRange(int dateRangePos, SimpleDateFormat format) {
         String[] result = new String[2];
         
@@ -575,19 +578,39 @@ public class RecordActivity extends AppCompatActivity {
             }
             
             void bindCarRecord(CarCertificateCheckModel record) {
-                tvRecordTime.setText(record.passTime != null ? sdf.format(record.passTime) : "--");
+                tvRecordTime.setText(TextUtils.isEmpty(record.verifyTime) ? "--" : record.verifyTime);
 
-                ivRecordIcon.setImageResource(R.drawable.ic_card_vehicle);
-                tvRecordName.setText(TextUtils.isEmpty(record.carPlate) ? "--" : record.carPlate);
+                String imageUrl = resolveRecordPhotoUrl(record.remark);
+                if (TextUtils.isEmpty(imageUrl)) {
+                    imageUrl = resolveRecordPhotoUrl(record.imageName);
+                }
+                if (!TextUtils.isEmpty(imageUrl)) {
+                    Glide.with(ivRecordIcon.getContext())
+                            .load(imageUrl)
+                            .apply(avatarOptions)
+                            .placeholder(R.drawable.ic_card_vehicle)
+                            .error(R.drawable.ic_card_vehicle)
+                            .centerCrop()
+                            .into(ivRecordIcon);
+                } else {
+                    ivRecordIcon.setImageResource(R.drawable.ic_card_vehicle);
+                }
+
+                tvRecordName.setText(TextUtils.isEmpty(record.name) ? "--" : record.name);
                 tvRecordChipLabel.setText("芯片号");
-                tvRecordChip.setText(record.tagNo1 != null ? record.tagNo1 : "--");
+                String chip = !TextUtils.isEmpty(record.cardNumber)
+                        ? record.cardNumber
+                        : record.idNumber;
+                tvRecordChip.setText(TextUtils.isEmpty(chip) ? "--" : chip);
 
                 tvRecordTypeTag.setText("车证核验");
                 tvRecordTypeTag.setBackgroundResource(R.drawable.bg_record_tag_car);
                 tvRecordTypeTag.setTextColor(0xFFE69500);
 
-                boolean success = record.checkStatus != null && record.checkStatus == 1;
-                applyResultStyle(success, success ? "核验成功" : "核验失败");
+                applyResultStyle(isPersonVerifySuccess(record.verifyStatus),
+                        isPersonVerifySuccess(record.verifyStatus)
+                                ? "核验成功"
+                                : verifyStatusLabel(record.verifyStatus));
             }
         }
     }

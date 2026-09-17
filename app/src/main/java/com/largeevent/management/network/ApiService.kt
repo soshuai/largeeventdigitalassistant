@@ -15,6 +15,7 @@ import com.largeevent.management.network.dto.MatrixAuthInfoDTO
 import com.largeevent.management.network.dto.PageResult
 import com.largeevent.management.network.dto.PersonCardCheckModel
 import com.largeevent.management.network.dto.PersonCardCheckPageDTO
+import com.largeevent.management.network.dto.ReceiveCheckCarDTO
 import com.largeevent.management.network.dto.ReceiveCheckPersonDTO
 import com.largeevent.management.network.dto.ReplacePhotoDTO
 import com.largeevent.management.network.dto.UpdateCardInfoDTO
@@ -142,12 +143,14 @@ interface ApiService {
 
     /**
      * 上传车证核验结果。
+     * 请求体字段与 [ReceiveCheckPersonDTO] 一致。
      *
-     * @param requestMap 包含 data 字段的 Map
-     * @return [ResponseBody] 原始响应（无结构化接收类）
+     * @param body 请求体 [ReceiveCheckCarDTO]
+     * @return [ResponseBody] 原始响应
+     * @see ReceiveCheckCarDTO
      */
     @POST("androidNew/api/receiveCheckCar")
-    fun receiveCheckCar(@Body requestMap: Map<String, String>?): Call<ResponseBody?>?
+    fun receiveCheckCar(@Body body: ReceiveCheckCarDTO?): Call<ResponseBody?>?
 
     /**
      * 分页查询人证核验记录。
@@ -174,6 +177,8 @@ interface ApiService {
 
     /**
      * 分页查询车证核验记录。
+     *
+     * 请求体字段与 [PersonCardCheckPageDTO] 一致。
      *
      * @param pageDTO 查询条件 [CarCertificateCheckPageDTO]
      * @return [ApiResponse]；`data` = [PageResult]&lt;[CarCertificateCheckModel]&gt;

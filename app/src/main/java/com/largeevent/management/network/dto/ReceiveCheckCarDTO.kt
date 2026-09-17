@@ -1,17 +1,12 @@
 package com.largeevent.management.network.dto
 
 /**
- * 车证核验记录接收类（分页 records 单条）。
- *
- * 接口：`POST androidNew/api/selectCarCertCheckRecord`
- * 字段名、类型与 [PersonCardCheckModel] 一致。
+ * POST androidNew/api/receiveCheckCar 请求体。
+ * 字段名、类型与 [ReceiveCheckPersonDTO] 一致。
  */
-class CarCertificateCheckModel {
+class ReceiveCheckCarDTO {
     @JvmField
     var entryId: String = ""
-
-    @JvmField
-    var moduleType: Int = 0
 
     @JvmField
     var verifyStatus: Int = 0
@@ -19,7 +14,7 @@ class CarCertificateCheckModel {
     @JvmField
     var verifyTime: String = ""
 
-    /** 进出方向：0 进 / 1 出 */
+    /** 0-进入，1-离开 */
     @JvmField
     var direction: Int = 0
 
@@ -41,28 +36,26 @@ class CarCertificateCheckModel {
     @JvmField
     var zoneLocationName: String = ""
 
-    /** 车牌（对应人证姓名） */
     @JvmField
     var name: String = ""
 
-    /** 芯片号（对应人证卡号） */
     @JvmField
     var cardNumber: String = ""
-
-    @JvmField
-    var idNumber: String = ""
 
     @JvmField
     var cardId: String = ""
 
     @JvmField
-    var isDetectedStatus: String = ""
+    var createTime: String = ""
 
     @JvmField
-    var closeContactStatus: String = ""
+    var isDetectedStatus: String = "2"
 
     @JvmField
-    var positiveStatus: String = ""
+    var closeContactStatus: String = "2"
+
+    @JvmField
+    var positiveStatus: String = "2"
 
     @JvmField
     var activityId: String = ""

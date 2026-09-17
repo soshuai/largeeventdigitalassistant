@@ -1,30 +1,41 @@
 package com.largeevent.management.network.dto
 
 /**
- * 车证核验记录分页查询 DTO
+ * POST androidNew/api/selectCarCertCheckRecord 请求体。
+ * 字段名、类型与 [PersonCardCheckPageDTO] 一致。
  */
-class CarCertificateCheckPageDTO : PageDto() {
-    /** 芯片号（IC 卡号，支持模糊查询） */
+class CarCertificateCheckPageDTO {
     @JvmField
-    var tagNo1: String? = null
+    var current: Int = 1
 
-    /** 车牌号码（支持模糊查询） */
     @JvmField
-    var carPlate: String? = null
+    var size: Int = 10
 
-    /** 验证情况：0-否，1-是 */
     @JvmField
-    var checkStatus: Int? = null
+    var name: String? = null
 
-    /** 车证类型 */
     @JvmField
-    var cardType: String? = null
+    var cardNumber: String? = null
 
-    /** 开始时间 */
+    @JvmField
+    var cardId: String? = null
+
+    @JvmField
+    var activityId: String? = null
+
+    @JvmField
+    /** 查询筛选：null=全部，0=核验失败，1=核验成功 */
+    var verifyStatus: Int? = null
+
+    @JvmField
+    var equipmentName: String? = null
+
+    @JvmField
+    var locationName: String? = null
+
     @JvmField
     var beginTime: String? = null
 
-    /** 结束时间 */
     @JvmField
     var endTime: String? = null
 }
