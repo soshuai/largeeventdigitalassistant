@@ -518,7 +518,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
 
         // 3. 验证激活状态（eventStatus!=5 表示未激活）
         if (currentCarDTO != null && !TextUtils.isEmpty(currentCarDTO.eventStatus)) {
-            if (!"5".equals(currentCarDTO.eventStatus)) {
+            if (!"5".equals(currentCarDTO.eventStatus)&&!"4".equals(currentCarDTO.eventStatus)) {
                 setVerifying(false);
                 uploadCheckRecord(info, false, "证件未激活");
                 recordAndOpen(new VerificationResult(VerificationResultType.NOT_ACTIVATED, "证件未激活", "该车证尚未激活，禁止通行", info, false, null, true));
