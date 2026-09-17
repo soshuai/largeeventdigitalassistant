@@ -39,7 +39,7 @@ public final class MatrixAuthSelectionHelper {
         return map;
     }
 
-    /** 分区：code 用 venuePartition，展示名优先 name，其次 venuePartitionVal */
+    /** 分区：code 用 venuePartition，展示名只用 venuePartitionVal */
     public static LinkedHashMap<String, String> collectPartitionLabels(
             List<MatrixAuthInfoDTO> authList) {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
@@ -48,23 +48,10 @@ public final class MatrixAuthSelectionHelper {
         }
         for (MatrixAuthInfoDTO auth : authList) {
             if (auth != null) {
-                putLabeledTokens(map, auth.venuePartition, firstNonEmpty(auth.name, auth.venuePartitionVal));
+                putLabeledTokens(map, auth.venuePartition, auth.venuePartitionVal);
             }
         }
         return map;
-    }
-
-    @androidx.annotation.Nullable
-    private static String firstNonEmpty(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (!TextUtils.isEmpty(value)) {
-                return value.trim();
-            }
-        }
-        return null;
     }
 
     /** 区域：venueArea / venueAreaVal */
@@ -82,6 +69,21 @@ public final class MatrixAuthSelectionHelper {
         return map;
     }
 
+    /** 停车通行码：code=park，展示名只用 parkVal */
+    public static LinkedHashMap<String, String> collectParkLabels(
+            List<MatrixAuthInfoDTO> authList) {
+        LinkedHashMap<String, String> map = new LinkedHashMap<>();
+        if (authList == null) {
+            return map;
+        }
+        for (MatrixAuthInfoDTO auth : authList) {
+            if (auth != null) {
+                putLabeledTokens(map, auth.park, auth.parkVal);
+            }
+        }
+        return map;
+    }
+
     private static void putLabeledTokens(
             LinkedHashMap<String, String> map, @androidx.annotation.Nullable String codes,
             @androidx.annotation.Nullable String labels) {
@@ -89,7 +91,13 @@ public final class MatrixAuthSelectionHelper {
         List<String> labelParts = new java.util.ArrayList<>(
                 DevicePermissionHelper.splitPrivilegeTokens(labels));
         if (codeSet.isEmpty()) {
+            if (DevicePermissionHelper.isPlaceholderPrivilegeCode(codes)) {
+                return;
+            }
             for (String label : labelParts) {
+                if (DevicePermissionHelper.isPlaceholderPrivilegeCode(label)) {
+                    continue;
+                }
                 if (!map.containsKey(label)) {
                     map.put(label, label);
                 }
@@ -98,15 +106,25 @@ public final class MatrixAuthSelectionHelper {
         }
         int i = 0;
         for (String code : codeSet) {
+            if (DevicePermissionHelper.isPlaceholderPrivilegeCode(code)) {
+                i++;
+                continue;
+            }
             String label;
             if (DevicePermissionHelper.isFullPrivilegeCode(code)) {
                 label = "全部";
-            } else if (i < labelParts.size() && !TextUtils.isEmpty(labelParts.get(i))) {
+            } else if (i < labelParts.size()
+                    && !DevicePermissionHelper.isPlaceholderPrivilegeCode(labelParts.get(i))) {
                 label = labelParts.get(i);
-            } else if (!TextUtils.isEmpty(labels) && labelParts.size() <= 1) {
+            } else if (!DevicePermissionHelper.isPlaceholderPrivilegeCode(labels)
+                    && labelParts.size() <= 1) {
                 label = labels.trim();
             } else {
                 label = code;
+            }
+            if (DevicePermissionHelper.isPlaceholderPrivilegeCode(label)) {
+                i++;
+                continue;
             }
             if (!map.containsKey(code)) {
                 map.put(code, label);

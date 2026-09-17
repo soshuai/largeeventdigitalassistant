@@ -64,14 +64,33 @@ public final class DevicePermissionHelper {
         public final Set<String> areaCodes = new HashSet<>();
         /** 分区权限 code（matrixAuth.venuePartition → personCertZoneList / zonePrivileges） */
         public final Set<String> partitionCodes = new HashSet<>();
+        /** 停车通行码（matrixAuth.park → 车证 parkingCode） */
+        public final Set<String> parkCodes = new HashSet<>();
 
         public boolean isEmpty() {
-            return venueCodes.isEmpty() && sportCodes.isEmpty()
-                    && areaCodes.isEmpty() && partitionCodes.isEmpty();
+            return isPersonEmpty();
+        }
+
+        /** 人证设备权限：仅场馆 + 分区 + 区域（不含分项） */
+        public boolean isPersonEmpty() {
+            return venueCodes.isEmpty() && areaCodes.isEmpty() && partitionCodes.isEmpty();
+        }
+
+        /** 车证设备权限：仅场馆 + 停车通行码 */
+        public boolean isCarEmpty() {
+            return venueCodes.isEmpty() && parkCodes.isEmpty();
         }
 
         public boolean hasAnyConfigured() {
-            return !isEmpty();
+            return !isPersonEmpty();
+        }
+
+        public boolean hasPersonConfigured() {
+            return !isPersonEmpty();
+        }
+
+        public boolean hasCarConfigured() {
+            return !isCarEmpty();
         }
     }
 
@@ -106,6 +125,7 @@ public final class DevicePermissionHelper {
             }
             addPrivilegeTokens(sets.venueCodes, auth.venue);
             addPrivilegeTokens(sets.venueCodes, auth.venueVal);
+            // 分项暂不参与人证核验，解析仍写入 sportCodes 便于以后打开
             addPrivilegeTokens(sets.sportCodes, auth.sportProject);
             addPrivilegeTokens(sets.sportCodes, auth.sportProjectVal);
             // 区域：venueArea；分区：venuePartition
@@ -113,6 +133,8 @@ public final class DevicePermissionHelper {
             addPrivilegeTokens(sets.areaCodes, auth.venueAreaVal);
             addPrivilegeTokens(sets.partitionCodes, auth.venuePartition);
             addPrivilegeTokens(sets.partitionCodes, auth.venuePartitionVal);
+            addPrivilegeTokens(sets.parkCodes, auth.park);
+            addPrivilegeTokens(sets.parkCodes, auth.parkVal);
         }
         return sets;
     }
@@ -123,6 +145,9 @@ public final class DevicePermissionHelper {
             return;
         }
         String trimmed = raw.trim();
+        if (isPlaceholderPrivilegeCode(trimmed)) {
+            return;
+        }
         target.add(trimmed);
         target.addAll(splitPrivileges(trimmed));
     }
@@ -163,6 +188,8 @@ public final class DevicePermissionHelper {
             addPrivilegeTokens(sets.areaCodes, auth.venueAreaVal);
             addPrivilegeTokens(sets.partitionCodes, auth.venuePartition);
             addPrivilegeTokens(sets.partitionCodes, auth.venuePartitionVal);
+            addPrivilegeTokens(sets.parkCodes, auth.park);
+            addPrivilegeTokens(sets.parkCodes, auth.parkVal);
         }
         return sets;
     }
@@ -213,21 +240,24 @@ public final class DevicePermissionHelper {
             PermissionSets device,
             boolean strictEmptyDevice,
             boolean skipEmptyCertPrivileges) {
-        if (device == null || device.isEmpty()) {
-            Log.w(TAG, "权限比对: 设备场馆/区域/分区/分项均为空, strictEmptyDevice="
+        if (device == null || device.isPersonEmpty()) {
+            Log.w(TAG, "人证权限比对: 设备场馆/区域/分区均为空, strictEmptyDevice="
                     + strictEmptyDevice);
-            return strictEmptyDevice ? MatchResult.fail("设备通行权限未配置") : MatchResult.ok();
+            return strictEmptyDevice
+                    ? MatchResult.fail("设备未配置场馆、分区和区域权限")
+                    : MatchResult.ok();
         }
 
         Set<String> certVenues = splitPrivileges(venuePrivileges);
         Set<String> certAreas = splitPrivileges(areaPrivileges);
         Set<String> certPartitions = splitPrivileges(zonePrivileges);
-        Set<String> certSports = splitPrivileges(sportPrivileges);
+        //todo 分项暂不比对
+        // Set<String> certSports = splitPrivileges(sportPrivileges);
 
         boolean venueOk = matchesPrivilegeDimension(
                 certVenues, device.venueCodes, skipEmptyCertPrivileges);
-        boolean sportOk = matchesPrivilegeDimension(
-                certSports, device.sportCodes, skipEmptyCertPrivileges);
+        // boolean sportOk = matchesPrivilegeDimension(
+        //         certSports, device.sportCodes, skipEmptyCertPrivileges);
         boolean areaOk = matchesPrivilegeDimension(
                 certAreas, device.areaCodes, skipEmptyCertPrivileges);
         boolean partitionOk = matchesPrivilegeDimension(
@@ -237,9 +267,9 @@ public final class DevicePermissionHelper {
         if (!venueOk) {
             failed.add("场馆");
         }
-        if (!sportOk) {
-            failed.add("分项");
-        }
+        // if (!sportOk) {
+        //     failed.add("分项");
+        // }
         if (!areaOk) {
             failed.add("区域");
         }
@@ -250,9 +280,46 @@ public final class DevicePermissionHelper {
         String summary = "人证权限比对 " + (failed.isEmpty() ? "通过" : ("不通过，失败维度=" + failed))
                 + " skipEmptyCert=" + skipEmptyCertPrivileges
                 + "\n  设备场馆=" + device.venueCodes + " 证件场馆=[" + venuePrivileges + "] ok=" + venueOk
-                + "\n  设备分项=" + device.sportCodes + " 证件分项=[" + sportPrivileges + "] ok=" + sportOk
+                // + "\n  设备分项=" + device.sportCodes + " 证件分项=[" + sportPrivileges + "] ok=" + sportOk
                 + "\n  设备区域=" + device.areaCodes + " 证件区域=[" + areaPrivileges + "] ok=" + areaOk
                 + "\n  设备分区=" + device.partitionCodes + " 证件分区=[" + zonePrivileges + "] ok=" + partitionOk;
+        if (failed.isEmpty()) {
+            Log.i(TAG, summary);
+            return MatchResult.ok();
+        }
+        Log.w(TAG, summary);
+        return MatchResult.fail(TextUtils.join("、", failed) + "权限不足");
+    }
+
+    /**
+     * 车证权限：设备场馆 ↔ venueCodeChildren，停车通行码 ↔ parkingCode。
+     * 场馆+停车都空则拒绝；某一维设备或证件为空则跳过该维。
+     */
+    public static MatchResult evaluateCarCertificateMatch(
+            @Nullable String venueCodeChildren,
+            @Nullable String parkingCode,
+            PermissionSets device) {
+        if (device == null || device.isCarEmpty()) {
+            Log.w(TAG, "车证权限比对失败: 设备场馆和停车通行码均为空"
+                    + " 证件场馆=[" + venueCodeChildren + "] 证件停车=[" + parkingCode + "]");
+            return MatchResult.fail("设备未配置场馆和停车通行码");
+        }
+
+        Set<String> certVenues = splitPrivileges(venueCodeChildren);
+        Set<String> certParks = splitPrivileges(parkingCode);
+        boolean venueOk = matchesPrivilegeDimension(certVenues, device.venueCodes, true);
+        boolean parkOk = matchesPrivilegeDimension(certParks, device.parkCodes, true);
+
+        List<String> failed = new ArrayList<>();
+        if (!venueOk) {
+            failed.add("场馆");
+        }
+        if (!parkOk) {
+            failed.add("停车通行码");
+        }
+        String summary = "车证权限比对 " + (failed.isEmpty() ? "通过" : ("不通过，失败维度=" + failed))
+                + "\n  设备场馆=" + device.venueCodes + " 证件场馆=[" + venueCodeChildren + "] ok=" + venueOk
+                + "\n  设备停车=" + device.parkCodes + " 证件停车=[" + parkingCode + "] ok=" + parkOk;
         if (failed.isEmpty()) {
             Log.i(TAG, summary);
             return MatchResult.ok();
@@ -337,7 +404,7 @@ public final class DevicePermissionHelper {
         if (trimmed.indexOf('~') >= 0) {
             for (String part : trimmed.split("~")) {
                 String code = part.trim();
-                if (!TextUtils.isEmpty(code)) {
+                if (!TextUtils.isEmpty(code) && !isPlaceholderPrivilegeCode(code)) {
                     set.add(code);
                 }
             }
@@ -345,7 +412,7 @@ public final class DevicePermissionHelper {
         }
         for (String part : trimmed.split(",")) {
             String code = part.trim();
-            if (!TextUtils.isEmpty(code)) {
+            if (!TextUtils.isEmpty(code) && !isPlaceholderPrivilegeCode(code)) {
                 set.add(code);
             }
         }
@@ -359,6 +426,25 @@ public final class DevicePermissionHelper {
         }
         String c = code.trim();
         return CODE_ALL.equalsIgnoreCase(c) || CODE_INF.equalsIgnoreCase(c);
+    }
+
+    /** 后台占位空值，不展示、不参与比对 */
+    public static boolean isPlaceholderPrivilegeCode(@Nullable String code) {
+        if (TextUtils.isEmpty(code)) {
+            return true;
+        }
+        String c = code.trim();
+        if (c.isEmpty()) {
+            return true;
+        }
+        return "NONE".equalsIgnoreCase(c)
+                || "NULL".equalsIgnoreCase(c)
+                || "NIL".equalsIgnoreCase(c)
+                || "N/A".equalsIgnoreCase(c)
+                || "NA".equalsIgnoreCase(c)
+                || "UNDEFINED".equalsIgnoreCase(c)
+                || "-".equals(c)
+                || "--".equals(c);
     }
 
     /**

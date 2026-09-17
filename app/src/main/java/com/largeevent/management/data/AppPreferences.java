@@ -28,6 +28,8 @@ public class AppPreferences {
     private static final String KEY_DEVICE_MATRIX_AREA = "key_device_matrix_area";
     /** 分区权限（venuePartition / zonePrivileges） */
     private static final String KEY_DEVICE_MATRIX_PARTITION = "key_device_matrix_partition";
+    /** 停车通行码（park / parkingCode） */
+    private static final String KEY_DEVICE_MATRIX_PARK = "key_device_matrix_park";
     /** 最近一次 getMatrixAuthInfoList / getCarMatrixAuthList 原始 JSON（展示用） */
     private static final String KEY_DEVICE_MATRIX_JSON = "key_device_matrix_json";
     private static final String KEY_ACTIVATION_CHECK = "key_activation_check_enabled";
@@ -244,7 +246,9 @@ public class AppPreferences {
                 .putStringSet(scopedKey(KEY_DEVICE_MATRIX_SPORT, activeId, module), new HashSet<>(sets.sportCodes))
                 .putStringSet(scopedKey(KEY_DEVICE_MATRIX_AREA, activeId, module), new HashSet<>(sets.areaCodes))
                 .putStringSet(scopedKey(KEY_DEVICE_MATRIX_PARTITION, activeId, module), new HashSet<>(sets.partitionCodes))
-                .putBoolean(scopedKey(KEY_DEVICE_PERM_CONFIGURED, activeId, module), sets.hasAnyConfigured())
+                .putStringSet(scopedKey(KEY_DEVICE_MATRIX_PARK, activeId, module), new HashSet<>(sets.parkCodes))
+                .putBoolean(scopedKey(KEY_DEVICE_PERM_CONFIGURED, activeId, module),
+                        module == ModuleType.VEHICLE ? sets.hasCarConfigured() : sets.hasAnyConfigured())
                 .apply();
     }
 
@@ -280,6 +284,7 @@ public class AppPreferences {
                 .remove(scopedKey(KEY_DEVICE_MATRIX_SPORT, activeId, module))
                 .remove(scopedKey(KEY_DEVICE_MATRIX_AREA, activeId, module))
                 .remove(scopedKey(KEY_DEVICE_MATRIX_PARTITION, activeId, module))
+                .remove(scopedKey(KEY_DEVICE_MATRIX_PARK, activeId, module))
                 .remove(scopedKey(KEY_DEVICE_MATRIX_JSON, activeId, module))
                 .remove(scopedKey(KEY_DEVICE_PERM_CONFIGURED, activeId, module))
                 .remove(KEY_DEVICE_AUTH_SYNCED + activeId + "_m" + module)
@@ -306,6 +311,7 @@ public class AppPreferences {
         Set<String> sports = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_SPORT, activeId, module), null);
         Set<String> areas = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_AREA, activeId, module), null);
         Set<String> partitions = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_PARTITION, activeId, module), null);
+        Set<String> parks = prefs.getStringSet(scopedKey(KEY_DEVICE_MATRIX_PARK, activeId, module), null);
         // 无 AREA key 表示尚未按「区域/分区」纠正后的语义写入，忽略旧 PARTITION，避免误用
         if (areas == null) {
             partitions = null;
@@ -317,18 +323,32 @@ public class AppPreferences {
             sports = prefs.getStringSet(KEY_DEVICE_MATRIX_SPORT + "_" + activeId, null);
         }
         if (venues != null) {
-            sets.venueCodes.addAll(venues);
+            addFilteredPrivilegeCodes(sets.venueCodes, venues);
         }
         if (sports != null) {
-            sets.sportCodes.addAll(sports);
+            addFilteredPrivilegeCodes(sets.sportCodes, sports);
         }
         if (areas != null) {
-            sets.areaCodes.addAll(areas);
+            addFilteredPrivilegeCodes(sets.areaCodes, areas);
         }
         if (partitions != null) {
-            sets.partitionCodes.addAll(partitions);
+            addFilteredPrivilegeCodes(sets.partitionCodes, partitions);
+        }
+        if (parks != null) {
+            addFilteredPrivilegeCodes(sets.parkCodes, parks);
         }
         return sets;
+    }
+
+    private static void addFilteredPrivilegeCodes(Set<String> target, Set<String> source) {
+        if (target == null || source == null) {
+            return;
+        }
+        for (String code : source) {
+            if (!DevicePermissionHelper.isPlaceholderPrivilegeCode(code)) {
+                target.add(code);
+            }
+        }
     }
 
     public static DevicePermissionHelper.PermissionSets getDeviceMatrixAuthCodes(
@@ -413,7 +433,8 @@ public class AppPreferences {
         if (prefs.getBoolean(scopedKey(KEY_DEVICE_PERM_CONFIGURED, activeId, module), false)) {
             return true;
         }
-        return getDeviceMatrixAuthCodes(context, activeId, module).hasAnyConfigured();
+        DevicePermissionHelper.PermissionSets sets = getDeviceMatrixAuthCodes(context, activeId, module);
+        return module == ModuleType.VEHICLE ? sets.hasCarConfigured() : sets.hasPersonConfigured();
     }
 
     public static boolean isDevicePermissionConfigured(Context context, String activeId) {
@@ -491,7 +512,7 @@ public class AppPreferences {
      * 确保已有设备编码；为空时生成并持久化
      */
     public static String ensureDeviceCode(Context context) {
-//        String code = "DEV_1789136890654";
+//        String code = "DEV_1789549201727_2";
         String code = getDeviceCode(context);
         if (TextUtils.isEmpty(code)) {
             code = "DEV_" + System.currentTimeMillis();

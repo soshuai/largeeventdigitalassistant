@@ -185,6 +185,7 @@
                 android:padding="12dp">
 
                 <TextView
+                    android:id="@+id/tv_label_venue_permission"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -201,6 +202,7 @@
                     android:padding="4dp" />
 
                 <TextView
+                    android:id="@+id/tv_label_partition_permission"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
@@ -217,6 +219,7 @@
                     android:padding="4dp" />
 
                 <TextView
+                    android:id="@+id/tv_label_area_permission"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
@@ -231,6 +234,25 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:padding="4dp" />
+
+                <TextView
+                    android:id="@+id/tv_label_parking_permission"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="停车通行码"
+                    android:textColor="#4A4F63"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+                <com.largeevent.management.widget.FlowLayout
+                    android:id="@+id/container_parking_permissions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:padding="4dp"
+                    android:visibility="gone" />
             </LinearLayout>
 
 

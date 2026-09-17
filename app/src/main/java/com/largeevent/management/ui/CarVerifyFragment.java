@@ -273,7 +273,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         inventoryExecutor.execute(() -> {
             List<String> newEpcList = new ArrayList<>();
             if (test) {
-                newEpcList.add("E28011B0A503007A28B8EE2C");
+                newEpcList.add("E2827802000000003667B210");
             } else {
                 if (!ensureUhfReady()) {
                     postInventoryResult(new ArrayList<>(), "UHF模块初始化失败");
@@ -457,7 +457,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
                     currentCarDTO = carDTO;  // 保存当前DTO
                     CertificateInfo info = CarCertificateParser.buildCertificateInfo(carDTO, chipId);
                     // 检查车牌号是否为空
-                    if (TextUtils.isEmpty(carDTO.carPlate)) {
+                    if (TextUtils.isEmpty(CarCertificateParser.resolvePlate(carDTO))) {
                         // 车牌未绑定，需要绑定
                         setVerifying(false);
                         recordAndOpen(new VerificationResult(VerificationResultType.BIND_REQUIRED, "车牌未绑定", "车证信息匹配，车牌已自动绑定", info, true, chipId, true), carDTO);  // 传递 carDTO
@@ -550,9 +550,9 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         String requiredDesc = getRequiredPermissionSummary(currentCarDTO);
         if (StrUtil.isNotEmpty(requiredDesc)) {
             setVerifying(false);
-            // 上传失败记录
-            uploadCheckRecord(info, false,  "权限不足");
-            recordAndOpen(new VerificationResult(VerificationResultType.PERMISSION_DENIED, "证件权限不足", "", info, false, null, true));
+            uploadCheckRecord(info, false, requiredDesc);
+            recordAndOpen(new VerificationResult(VerificationResultType.PERMISSION_DENIED,
+                    "无权通行", requiredDesc, info, false, null, true), currentCarDTO);
             return;
         }
 
@@ -572,10 +572,8 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         if (info != null && !TextUtils.isEmpty(info.cardSerial)) {
             return info.cardSerial.trim();
         }
-        if (currentCarDTO != null && !TextUtils.isEmpty(currentCarDTO.carPlate)) {
-            return currentCarDTO.carPlate.trim();
-        }
-        return "";
+        String plate = CarCertificateParser.resolvePlate(currentCarDTO);
+        return plate != null ? plate : "";
     }
 
     /**
@@ -598,8 +596,8 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
 
             // 设置基本信息
             checkDTO.tagNo1 = currentCarDTO.tagNo1;
-            checkDTO.carPlate = currentCarDTO.carPlate;
-            checkDTO.organization = currentCarDTO.organization;
+            checkDTO.carPlate = CarCertificateParser.resolvePlate(currentCarDTO);
+            checkDTO.organization = CarCertificateParser.resolveOffice(currentCarDTO);
             checkDTO.responsibilityPhone = currentCarDTO.responsibilityPhone;
             checkDTO.cardType = currentCarDTO.cardType;
 
@@ -827,24 +825,15 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
                     DevicePermissionHelper.resolveDevicePermissions(
                             requireContext(), currentActiveId, basicInfo, ModuleType.VEHICLE);
             Log.d(TAG, "设备权限(matrixAuth) venue=" + device.venueCodes
-                    + ", area(区域)=" + device.areaCodes
-                    + ", partition(分区)=" + device.partitionCodes);
+                    + ", park(停车)=" + device.parkCodes);
 
-            // 车证：area=场馆，parkingArea=区域；无分区/分项时传空
-            boolean matched = DevicePermissionHelper.certificateMatchesDevice(
-                    carDTO.area,
-                    carDTO.parkingArea,
-                    null,
-                    null,
-                    device,
-                    true);
-            if (matched) {
+            DevicePermissionHelper.MatchResult match =
+                    DevicePermissionHelper.evaluateCarCertificateMatch(
+                            carDTO.venueCodeChildren, carDTO.parkingCode, device);
+            if (match.matched) {
                 return "";
             }
-            if (device.isEmpty()) {
-                return "设备权限未配置";
-            }
-            return "缺少通行权限";
+            return !TextUtils.isEmpty(match.failReason) ? match.failReason : "缺少通行权限";
         } catch (Exception e) {
             Log.e(TAG, "获取所需权限失败", e);
             return "获取所需权限失败";

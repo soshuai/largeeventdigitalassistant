@@ -25,11 +25,15 @@ import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.largeevent.management.camera.CameraCallback;
 import com.largeevent.management.camera.CameraHelper;
 import com.largeevent.management.data.AppPreferences;
 import com.largeevent.management.data.DevicePermissionHelper;
 import com.largeevent.management.data.InitializationRepository;
+import com.largeevent.management.data.MatrixAuthSelectionHelper;
+import com.largeevent.management.data.ModuleType;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.CertificateInfo;
 import com.largeevent.management.model.VerificationResult;
@@ -38,14 +42,17 @@ import com.largeevent.management.network.ApiService;
 import com.largeevent.management.network.NetworkManager;
 import com.largeevent.management.network.dto.ApiResponse;
 import com.largeevent.management.network.dto.CarCertificateDTO;
+import com.largeevent.management.network.dto.MatrixAuthInfoDTO;
 import com.largeevent.management.network.dto.ReplacePhotoDTO;
 import com.largeevent.management.widget.CommonConfig;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -200,7 +207,7 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
 
             tvCertificateName.setText(result.isVehicle() ? "单位：" + safe(info.name) : "姓名：" + safe(info.name));
             if (result.isVehicle()) {
-                tvCertificateType.setText("车牌号码：" + safe(info.cardSerial));
+                tvCertificateType.setText("车牌号：" + safe(info.cardSerial));
                 tvIdNumber.setVisibility(View.GONE);
             } else {
                 tvCertificateType.setText("身份证类型：" + safe(
@@ -424,94 +431,85 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
     }
 
     /**
-     * 显示车证场馆权限和区域权限
+     * 显示车证场馆权限和停车通行码
      */
     private void displayCarPermissions(CarCertificateDTO carDTO) {
         if (carDTO == null) {
             setPermissionPlaceholders();
             return;
         }
-
+        tvPartitionPermission.setVisibility(View.GONE);
         try {
-            // 获取基础信息
-            BasicInfo basicInfo = initRepository.getBasicInfo();
-            if (basicInfo == null) {
-                tvVenuePermission.setText("场馆权限：--");
-                tvCertificatePermission.setText("区域权限：--");
-                return;
-            }
-
-            // 获取车证的场馆权限 (area 字段) 和区域权限 (parkingArea 字段)
-            String areaField = carDTO.area;  // 场馆权限
-            String parkingAreaField = carDTO.parkingArea;  // 区域权限
-            // 匹配场馆权限：根据 activeVenueModelList 的 venueCode 获取 venueName
-            List<String> venueNames = new ArrayList<>();
-            if (!TextUtils.isEmpty(areaField)) {
-                String[] venueCodes = areaField.split(",");
-                List<BasicInfo.ActiveVenueModel> venues = basicInfo.getActiveVenues();
-
-                if (venues != null) {
-                    for (String venueCode : venueCodes) {
-                        String trimmedCode = venueCode.trim();
-                        for (BasicInfo.ActiveVenueModel venue : venues) {
-                            if (venue != null) {
-                                if (trimmedCode.equals(venue.venueCode)) {
-                                    String venueName = venue.venueName;
-                                    if (TextUtils.isEmpty(venueName)) {
-                                        venueName = venue.venueCode;
-                                    }
-                                    venueNames.add(venueName);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Log.d(TAG, "最终匹配到的场馆名称: " + venueNames);
-
-            // 显示场馆权限
-            if (venueNames.isEmpty()) {
-                tvVenuePermission.setText("场馆权限：无权限");
-            } else {
-                tvVenuePermission.setText("场馆权限：" + TextUtils.join("、", venueNames));
-            }
-
-            // 匹配区域权限：根据 carCertTypeList 的 dictCode 获取 dictValue
-            List<String> areaNames = new ArrayList<>();
-            if (!TextUtils.isEmpty(parkingAreaField)) {
-                String[] areaCodes = parkingAreaField.split(",");
-                List<BasicInfo.CertTypeModel> carCertTypes = basicInfo.getCarCertTypes();
-                if (carCertTypes != null) {
-                    for (String areaCode : areaCodes) {
-                        String trimmedCode = areaCode.trim();
-                        for (BasicInfo.CertTypeModel certType : carCertTypes) {
-                            if (certType != null) {
-                                if (trimmedCode.equals(certType.dictCode)) {
-                                    String areaName = certType.dictValue;
-                                    if (TextUtils.isEmpty(areaName)) {
-                                        areaName = certType.dictCode;
-                                    }
-                                    areaNames.add(areaName);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            // 显示区域权限
-            if (areaNames.isEmpty()) {
-                tvCertificatePermission.setText("区域权限：无权限");
-            } else {
-                tvCertificatePermission.setText("区域权限：" + TextUtils.join("、", areaNames));
-            }
+            List<MatrixAuthInfoDTO> authList = loadVehicleMatrixAuthList();
+            String venueNames = mapCarPrivilegeNames(
+                    carDTO.venueCodeChildren,
+                    MatrixAuthSelectionHelper.collectVenueLabels(authList));
+            String parkNames = mapCarPrivilegeNames(
+                    carDTO.parkingCode,
+                    MatrixAuthSelectionHelper.collectParkLabels(authList));
+            tvVenuePermission.setText(formatPermissionLine("场馆权限：", venueNames));
+            tvCertificatePermission.setText(formatPermissionLine("停车通行码：", parkNames));
         } catch (Exception e) {
             Log.e(TAG, "Failed to display car permissions", e);
-            tvVenuePermission.setText("场馆权限:解析失败");
-            tvCertificatePermission.setText("区域权限:解析失败");
+            tvVenuePermission.setText("场馆权限：解析失败");
+            tvCertificatePermission.setText("停车通行码：解析失败");
         }
+    }
+
+    @Nullable
+    private List<MatrixAuthInfoDTO> loadVehicleMatrixAuthList() {
+        String activeId = AppPreferences.getLastActiveId(this);
+        String json = AppPreferences.getDeviceMatrixAuthJson(this, activeId, ModuleType.VEHICLE);
+        if (TextUtils.isEmpty(json)) {
+            return null;
+        }
+        try {
+            Type type = new TypeToken<List<MatrixAuthInfoDTO>>() {
+            }.getType();
+            return new Gson().fromJson(json, type);
+        } catch (Exception e) {
+            Log.w(TAG, "parse vehicle matrixAuth json failed", e);
+            return null;
+        }
+    }
+
+    @Nullable
+    private String mapCarPrivilegeNames(
+            @Nullable String privilegeCodes,
+            @Nullable LinkedHashMap<String, String> labels) {
+        if (TextUtils.isEmpty(privilegeCodes)) {
+            return null;
+        }
+        if (DevicePermissionHelper.isFullPrivilegeCode(privilegeCodes.trim())) {
+            return "全部";
+        }
+        List<String> names = new ArrayList<>();
+        for (String code : DevicePermissionHelper.splitPrivilegeTokens(privilegeCodes)) {
+            if (DevicePermissionHelper.isFullPrivilegeCode(code)) {
+                names.add("全部");
+                continue;
+            }
+            String name = lookupLabel(labels, code);
+            names.add(!TextUtils.isEmpty(name) ? name : code);
+        }
+        return names.isEmpty() ? null : TextUtils.join("、", names);
+    }
+
+    @Nullable
+    private String lookupLabel(@Nullable LinkedHashMap<String, String> labels, String code) {
+        if (labels == null || TextUtils.isEmpty(code)) {
+            return null;
+        }
+        String direct = labels.get(code);
+        if (!TextUtils.isEmpty(direct)) {
+            return direct;
+        }
+        for (Map.Entry<String, String> entry : labels.entrySet()) {
+            if (code.equalsIgnoreCase(entry.getKey())) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     /**

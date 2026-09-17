@@ -7,6 +7,8 @@ import com.largeevent.management.network.dto.CarCertificateDTO;
 
 import org.json.JSONObject;
 
+import androidx.annotation.Nullable;
+
 /**
  * 车证数据解析器
  */
@@ -35,15 +37,56 @@ public class CarCertificateParser {
         dto.carPlate = json.optString("carPlate");
         dto.parkingArea = json.optString("parkingArea");
         dto.responsibilityPhone = json.optString("responsibilityPhone");
-        dto.area = json.optString("area");
+        dto.parkingCode = json.optString("parkingCode");
+        dto.venueCodeChildren = json.optString("venueCodeChildren");
         dto.cardType = json.optString("cardType");
         dto.licensePlateColor = json.optString("licensePlateColor");
         dto.startTime = json.optString("startTime");
         dto.endTime = json.optString("endTime");
         dto.accessAuthority = json.optString("accessAuthority");
         dto.eventStatus = json.optString("eventStatus");
+        dto.cardId = json.optString("cardId");
+        dto.applicantOffice = json.optString("applicantOffice");
+        dto.licensePlateNum = json.optString("licensePlateNum");
         
         return dto;
+    }
+
+    @Nullable
+    public static String resolveOffice(@Nullable CarCertificateDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        return firstNonEmpty(dto.applicantOffice, dto.organization);
+    }
+
+    @Nullable
+    public static String resolvePlate(@Nullable CarCertificateDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        return firstNonEmpty(dto.licensePlateNum, dto.carPlate);
+    }
+
+    @Nullable
+    public static String resolveCardId(@Nullable CarCertificateDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        return firstNonEmpty(dto.cardId, dto.number);
+    }
+
+    @Nullable
+    private static String firstNonEmpty(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (!TextUtils.isEmpty(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     /**
@@ -60,31 +103,19 @@ public class CarCertificateParser {
         }
         
         CertificateInfo.Builder builder = new CertificateInfo.Builder()
-                .setName(dto.organization)  // 单位名称
+                .setName(resolveOffice(dto))
                 .setDocumentType("车证")
-                .setNumber(dto.number)
+                .setCertId(resolveCardId(dto))
+                .setNumber(resolveCardId(dto))
                 .setChipId(chipId)
-                .setCardSerial(dto.carPlate)  // 编号
+                .setCardSerial(resolvePlate(dto))
                 .setValidFrom(!TextUtils.isEmpty(dto.startTime) ? dto.startTime : "")
                 .setValidTo(!TextUtils.isEmpty(dto.endTime) ? dto.endTime : "")
-                .setNeedBinding(false)  // 车证不需要绑定
-                .setBound(true)
-                .setRealNameRequired(false);  // 车证不需要人脸识别
-        
-        // 添加权限（优先使用 accessAuthority，其次使用 area）
-        String authority = dto.accessAuthority;
-        if (!TextUtils.isEmpty(authority)) {
-            // 使用出入权限字段
-            builder.addPermission(authority);
-        } else {
-            // 降级使用 area 字段
-            String area = dto.area;
-            if (!TextUtils.isEmpty(area)) {
-                builder.addPermission(area);
-            } else {
-                builder.addPermission("ALL");
-            }
-        }
+                .setNeedBinding(false)
+                .setBound(!TextUtils.isEmpty(resolvePlate(dto)))
+                .setRealNameRequired(false)
+                .setVenuePrivileges(dto.venueCodeChildren)
+                .setAreaPrivileges(dto.parkingCode);
         
         return builder.build();
     }

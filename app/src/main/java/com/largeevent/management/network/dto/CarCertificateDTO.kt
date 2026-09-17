@@ -68,9 +68,13 @@ class CarCertificateDTO : Serializable { // Getters
     @JvmField
     var responsibilityPhone: String? = null
 
-    /** 场馆（车证权限比对用，对应设备场馆维）  */
+    /** 停车通行码（对应设备 park / parkVal）  */
     @JvmField
-    var area: String? = null
+    var parkingCode: String? = null
+
+    /** 场馆权限（对应设备 venue）  */
+    @JvmField
+    var venueCodeChildren: String? = null
 
     /** 证件类型 */
     @JvmField
@@ -105,6 +109,14 @@ class CarCertificateDTO : Serializable { // Getters
     /** 活动 ID */
     @JvmField
     var activeId: String? = null
+
+    /** 编号  */
+    @JvmField
+    var cardId: String? = null
+
+    /** 单位  */
+    @JvmField
+    var applicantOffice: String? = null
 
     // ==================== 新增字段 ====================
 

@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.MenuItem;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -68,6 +69,10 @@ public class EventSettingsActivity extends AppCompatActivity {
     private FlowLayout containerVenuePermissions;
     private FlowLayout containerPartitionPermissions;
     private FlowLayout containerCertZonePermissions;
+    private FlowLayout containerParkingPermissions;
+    private TextView tvLabelPartitionPermission;
+    private TextView tvLabelAreaPermission;
+    private TextView tvLabelParkingPermission;
     private Spinner spinnerSubUnit;
     private Spinner spinnerEqpType;
     private SwitchCompat switchActivationCheck;
@@ -85,6 +90,7 @@ public class EventSettingsActivity extends AppCompatActivity {
     private final List<TextView> venuePermissionChips = new ArrayList<>();
     private final List<TextView> partitionPermissionChips = new ArrayList<>();
     private final List<TextView> certZonePermissionChips = new ArrayList<>();
+    private final List<TextView> parkingPermissionChips = new ArrayList<>();
 
     private EventInfo currentEventInfo;
     private String currentActiveId;
@@ -123,6 +129,10 @@ public class EventSettingsActivity extends AppCompatActivity {
         containerVenuePermissions = findViewById(R.id.container_venue_permissions);
         containerPartitionPermissions = findViewById(R.id.container_partition_permissions);
         containerCertZonePermissions = findViewById(R.id.container_cert_zone_permissions);
+        containerParkingPermissions = findViewById(R.id.container_parking_permissions);
+        tvLabelPartitionPermission = findViewById(R.id.tv_label_partition_permission);
+        tvLabelAreaPermission = findViewById(R.id.tv_label_area_permission);
+        tvLabelParkingPermission = findViewById(R.id.tv_label_parking_permission);
         spinnerSubUnit = findViewById(R.id.spinner_sub_unit);
         spinnerEqpType = findViewById(R.id.spinner_eqp_type);
         switchActivationCheck = findViewById(R.id.switch_activation_check);
@@ -240,6 +250,7 @@ public class EventSettingsActivity extends AppCompatActivity {
             suppressModuleCallback = false;
             suppressSpinnerCallback = false;
 
+            applyPermissionSectionVisibility();
             // 权限芯片只来自 matrixAuth 接口缓存，不使用 basicInfo 字典
             renderCachedMatrixAuthPermissions();
             onLocationOrZoneChanged();
@@ -347,6 +358,7 @@ public class EventSettingsActivity extends AppCompatActivity {
                 setupLocationSpinner();
                 setupZoneSpinner();
                 suppressSpinnerCallback = false;
+                applyPermissionSectionVisibility();
                 // 先展示当前模块已缓存的 matrixAuth，未同步则重新注册拉取
                 renderCachedMatrixAuthPermissions();
                 onLocationOrZoneChanged();
@@ -526,9 +538,37 @@ public class EventSettingsActivity extends AppCompatActivity {
         containerVenuePermissions.removeAllViews();
         containerPartitionPermissions.removeAllViews();
         containerCertZonePermissions.removeAllViews();
+        if (containerParkingPermissions != null) {
+            containerParkingPermissions.removeAllViews();
+        }
         venuePermissionChips.clear();
         partitionPermissionChips.clear();
         certZonePermissionChips.clear();
+        parkingPermissionChips.clear();
+    }
+
+    private void applyPermissionSectionVisibility() {
+        boolean vehicle = currentModuleType == ModuleType.VEHICLE;
+        int personVis = vehicle ? View.GONE : View.VISIBLE;
+        int vehicleVis = vehicle ? View.VISIBLE : View.GONE;
+        if (tvLabelPartitionPermission != null) {
+            tvLabelPartitionPermission.setVisibility(personVis);
+        }
+        if (containerPartitionPermissions != null) {
+            containerPartitionPermissions.setVisibility(personVis);
+        }
+        if (tvLabelAreaPermission != null) {
+            tvLabelAreaPermission.setVisibility(personVis);
+        }
+        if (containerCertZonePermissions != null) {
+            containerCertZonePermissions.setVisibility(personVis);
+        }
+        if (tvLabelParkingPermission != null) {
+            tvLabelParkingPermission.setVisibility(vehicleVis);
+        }
+        if (containerParkingPermissions != null) {
+            containerParkingPermissions.setVisibility(vehicleVis);
+        }
     }
 
     /** 用当前模块缓存的 matrixAuth 列表渲染权限芯片（全部为设备已有权限） */
@@ -540,6 +580,7 @@ public class EventSettingsActivity extends AppCompatActivity {
         Log.d(TAG, "render matrixAuth module=" + currentModuleType
                 + " size=" + (authList != null ? authList.size() : 0)
                 + " venue=" + sets.venueCodes
+                + " park(停车)=" + sets.parkCodes
                 + " area(区域)=" + sets.areaCodes
                 + " partition(分区)=" + sets.partitionCodes);
     }
@@ -563,12 +604,19 @@ public class EventSettingsActivity extends AppCompatActivity {
 
     private void bindPermissionChipsFromAuthList(@Nullable List<MatrixAuthInfoDTO> authList) {
         clearPermissionChips();
+        applyPermissionSectionVisibility();
         if (authList == null || authList.isEmpty()) {
             return;
         }
         addSelectedChips(
                 MatrixAuthSelectionHelper.collectVenueLabels(authList),
                 containerVenuePermissions, venuePermissionChips);
+        if (currentModuleType == ModuleType.VEHICLE) {
+            addSelectedChips(
+                    MatrixAuthSelectionHelper.collectParkLabels(authList),
+                    containerParkingPermissions, parkingPermissionChips);
+            return;
+        }
         addSelectedChips(
                 MatrixAuthSelectionHelper.collectPartitionLabels(authList),
                 containerPartitionPermissions, partitionPermissionChips);
@@ -677,7 +725,9 @@ public class EventSettingsActivity extends AppCompatActivity {
                         }
                         AppPreferences.setDevicePermissionConfigured(
                                 EventSettingsActivity.this, currentActiveId, moduleType,
-                                sets.hasAnyConfigured());
+                                moduleType == ModuleType.VEHICLE
+                                        ? sets.hasCarConfigured()
+                                        : sets.hasPersonConfigured());
                         if (!TextUtils.isEmpty(selectedLocationId) && !TextUtils.isEmpty(selectedZoneId)) {
                             AppPreferences.setDeviceAuthSynced(
                                     EventSettingsActivity.this, currentActiveId, moduleType,
@@ -812,32 +862,6 @@ public class EventSettingsActivity extends AppCompatActivity {
         }
         return selectedSessions;
     }
-
-    /**
-     * 获取当前选中的权限
-     */
-    private Set<String> getCurrentSelectedVenuePermissions() {
-        return getSelectedChipTexts(venuePermissionChips);
-    }
-
-    private Set<String> getCurrentSelectedPartitionPermissions() {
-        return getSelectedChipTexts(partitionPermissionChips);
-    }
-
-    private Set<String> getCurrentSelectedCertZonePermissions() {
-        return getSelectedChipTexts(certZonePermissionChips);
-    }
-
-    private Set<String> getCheckedTexts(List<CheckBox> checkboxes) {
-        Set<String> selected = new java.util.HashSet<>();
-        for (CheckBox cb : checkboxes) {
-            if (cb != null && cb.isChecked()) {
-                selected.add(cb.getText().toString());
-            }
-        }
-        return selected;
-    }
-
     private Set<String> getSelectedChipTexts(List<TextView> chips) {
         Set<String> selected = new java.util.HashSet<>();
         for (TextView chip : chips) {
