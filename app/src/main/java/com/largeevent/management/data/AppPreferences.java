@@ -533,7 +533,7 @@ public class AppPreferences {
      */
     public static String ensureDeviceCode(Context context) {
         String code = getDeviceCode(context);
-        if (test) {
+        if ( test) {
             code = "DEV_1788616993593";
         }
         if (TextUtils.isEmpty(code)) {

@@ -74,7 +74,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     private BroadcastReceiver funKeyReceiver;
     private long lastHandleTriggerElapsedMs = 0L;
 
-    private final boolean test = false;
+    private final boolean test = funKeyReceiver.getAbortBroadcast();
 
     @Nullable
     @Override
@@ -275,7 +275,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
             List<String> newEpcList = new ArrayList<>();
             if (test) {
                 //E2827802000000003667B210 E28011B0A503007A28B8EE2C
-                newEpcList.add("E28011B0A503007A28B8EE2C");
+                newEpcList.add("E2827802000000003667B210");
             } else {
                 if (!ensureUhfReady()) {
                     postInventoryResult(new ArrayList<>(), "UHF模块初始化失败");

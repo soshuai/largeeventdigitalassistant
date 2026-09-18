@@ -365,10 +365,10 @@ public class EventSettingsActivity extends AppCompatActivity {
                 // 先展示当前模块已缓存的 matrixAuth，未同步则重新注册拉取
                 renderCachedMatrixAuthPermissions();
                 onLocationOrZoneChanged();
-                Toast.makeText(EventSettingsActivity.this,
-                        "已切换至" + ModuleType.toLabel(currentModuleType)
-                                + "（位置/分区与通行权限按模块独立）",
-                        Toast.LENGTH_SHORT).show();
+//                Toast.makeText(EventSettingsActivity.this,
+//                        "已切换至" + ModuleType.toLabel(currentModuleType)
+//                                + "（位置/分区与通行权限按模块独立）",
+//                        Toast.LENGTH_SHORT).show();
             }
 
             @Override
@@ -531,9 +531,9 @@ public class EventSettingsActivity extends AppCompatActivity {
             return;
         }
         isRegistering = true;
-        Toast.makeText(this,
-                "正在刷新" + ModuleType.toLabel(currentModuleType) + "通行权限...",
-                Toast.LENGTH_SHORT).show();
+//        Toast.makeText(this,
+//                "正在刷新" + ModuleType.toLabel(currentModuleType) + "通行权限...",
+//                Toast.LENGTH_SHORT).show();
         fetchMatrixAuthInfo(eqpId, currentModuleType);
     }
 
