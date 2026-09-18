@@ -8,8 +8,8 @@ import androidx.annotation.Nullable;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.VerificationResult;
 import com.largeevent.management.model.VerificationResultType;
-import com.largeevent.management.network.dto.CarCertificateDTO;
-import com.largeevent.management.network.dto.ReceiveCheckCarDTO;
+import com.largeevent.management.network.dto.CarCertificateVo;
+import com.largeevent.management.network.dto.ReceiveCheckCarAo;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -27,13 +27,13 @@ public final class ReceiveCheckCarBuilder {
     private ReceiveCheckCarBuilder() {
     }
 
-    public static ReceiveCheckCarDTO build(
+    public static ReceiveCheckCarAo build(
             Context context,
             VerificationResult result,
-            @Nullable CarCertificateDTO car,
+            @Nullable CarCertificateVo car,
             @Nullable String chipId,
             @Nullable BasicInfo basicInfo) {
-        ReceiveCheckCarDTO dto = new ReceiveCheckCarDTO();
+        ReceiveCheckCarAo dto = new ReceiveCheckCarAo();
         String activeId = AppPreferences.getLastActiveId(context);
 
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
@@ -97,7 +97,7 @@ public final class ReceiveCheckCarBuilder {
         return code;
     }
 
-    private static String resolveName(@Nullable CarCertificateDTO car) {
+    private static String resolveName(@Nullable CarCertificateVo car) {
         String plate = CarCertificateParser.resolvePlate(car);
         if (!TextUtils.isEmpty(plate)) {
             return plate.trim();

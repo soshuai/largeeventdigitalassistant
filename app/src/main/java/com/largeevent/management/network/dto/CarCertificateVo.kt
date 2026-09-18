@@ -10,7 +10,7 @@ import java.util.Date
  * - `GET androidNew/api/getActiveCarCert` — [ApiResponse.data] 列表元素
  * - `POST androidNew/api/updateCarCert` — 请求体（响应为原始 ResponseBody）
  */
-class CarCertificateDTO : Serializable { // Getters
+class CarCertificateVo : Serializable { // Getters
     // Setters
     /** ID  */
     @JvmField

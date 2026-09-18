@@ -7,7 +7,7 @@ import androidx.annotation.Nullable;
 
 import com.largeevent.management.model.VerificationResult;
 import com.largeevent.management.model.VerificationResultType;
-import com.largeevent.management.network.dto.ActiveUserBaseDTO;
+import com.largeevent.management.network.dto.ActiveUserBaseVo;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -89,7 +89,7 @@ public final class PersonVerificationHelper {
     public static StepResult runCommonRules(
             Context context,
             String activeId,
-            ActiveUserBaseDTO user,
+            ActiveUserBaseVo user,
             DevicePermissionHelper.PermissionSets devicePermissions) {
         if (user == null) {
             return StepResult.fail(Step.CANCELED, "未识读出证件", "证件信息为空");
@@ -158,14 +158,14 @@ public final class PersonVerificationHelper {
         return StepResult.ok(Step.NEED_FACE_VERIFY);
     }
 
-    public static boolean isCanceled(ActiveUserBaseDTO user) {
+    public static boolean isCanceled(ActiveUserBaseVo user) {
         if (user.eventStatus == 6) {
             return true;
         }
         return "1".equals(user.cancelCard);
     }
 
-    public static boolean isBackgroundCheckPassed(ActiveUserBaseDTO user) {
+    public static boolean isBackgroundCheckPassed(ActiveUserBaseVo user) {
         if (TextUtils.isEmpty(user.bsStatus)) {
             return true;
         }
@@ -173,12 +173,12 @@ public final class PersonVerificationHelper {
     }
 
     /** bindStatus：1-已绑定，0-未绑定 */
-    public static boolean isBound(ActiveUserBaseDTO user) {
+    public static boolean isBound(ActiveUserBaseVo user) {
         return user != null && "1".equals(trimToEmpty(user.bindStatus));
     }
 
     /** passType=TP 或 mainAppTypeCode=02（日卡） */
-    public static boolean isTpPassType(ActiveUserBaseDTO user) {
+    public static boolean isTpPassType(ActiveUserBaseVo user) {
         if (user == null) {
             return false;
         }
@@ -192,7 +192,7 @@ public final class PersonVerificationHelper {
         return value == null ? "" : value.trim();
     }
 
-    public static boolean isActivated(Context context, String activeId, ActiveUserBaseDTO user) {
+    public static boolean isActivated(Context context, String activeId, ActiveUserBaseVo user) {
         if (!AppPreferences.isActivationCheckEnabled(context, activeId)) {
             return user.eventStatus <= 5;
         }
@@ -200,7 +200,7 @@ public final class PersonVerificationHelper {
     }
 
     /** 证件发布状态：仅 2-已发布 可通行；3-已取消发布 拒绝。 */
-    public static boolean isPublishOk(ActiveUserBaseDTO user) {
+    public static boolean isPublishOk(ActiveUserBaseVo user) {
         if (user == null) {
             return false;
         }
@@ -210,7 +210,7 @@ public final class PersonVerificationHelper {
     /**
      * 仅以 cardEffectiveDate / cardExpirationDate 判断是否在有效期内（与接口文档一致）。
      */
-    public static boolean isValidityOk(ActiveUserBaseDTO user) {
+    public static boolean isValidityOk(ActiveUserBaseVo user) {
         if (user == null) {
             return false;
         }
@@ -341,15 +341,15 @@ public final class PersonVerificationHelper {
      * 一人多证：优先芯片匹配，其次非注销且权限最佳。
      */
     @Nullable
-    public static ActiveUserBaseDTO selectBestUser(
-            List<ActiveUserBaseDTO> list,
+    public static ActiveUserBaseVo selectBestUser(
+            List<ActiveUserBaseVo> list,
             @Nullable String chipId,
             @Nullable String subUnitName) {
         if (list == null || list.isEmpty()) {
             return null;
         }
-        List<ActiveUserBaseDTO> candidates = new ArrayList<>();
-        for (ActiveUserBaseDTO dto : list) {
+        List<ActiveUserBaseVo> candidates = new ArrayList<>();
+        for (ActiveUserBaseVo dto : list) {
             if (dto == null || isCanceled(dto)) {
                 continue;
             }
@@ -371,8 +371,8 @@ public final class PersonVerificationHelper {
         if (candidates.isEmpty()) {
             return list.get(0);
         }
-        ActiveUserBaseDTO best = candidates.get(0);
-        for (ActiveUserBaseDTO dto : candidates) {
+        ActiveUserBaseVo best = candidates.get(0);
+        for (ActiveUserBaseVo dto : candidates) {
             if (typePriority(dto.mainAppTypeCode) < typePriority(best.mainAppTypeCode)) {
                 best = dto;
             }

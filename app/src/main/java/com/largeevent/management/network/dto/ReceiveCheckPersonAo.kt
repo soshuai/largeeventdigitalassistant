@@ -1,10 +1,9 @@
 package com.largeevent.management.network.dto
 
 /**
- * POST androidNew/api/receiveCheckCar 请求体。
- * 字段名、类型与 [ReceiveCheckPersonDTO] 一致。
+ * POST /receiveCheckPerson 请求体（字段名、类型与后端一致）
  */
-class ReceiveCheckCarDTO {
+class ReceiveCheckPersonAo {
     @JvmField
     var entryId: String = ""
 

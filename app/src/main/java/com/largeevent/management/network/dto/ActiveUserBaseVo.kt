@@ -9,7 +9,7 @@ package com.largeevent.management.network.dto
  *
  * 位于 [ApiResponse.data] 的列表元素。
  */
-class ActiveUserBaseDTO { // Getters
+class ActiveUserBaseVo { // Getters
     // Setters
     /** 用户id  */
     @JvmField

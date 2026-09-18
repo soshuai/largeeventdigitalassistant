@@ -20,20 +20,20 @@ import com.largeevent.management.model.BasicInfo.MatrixAuthInfo;
 import com.largeevent.management.model.BasicInfo.PassRuleModel;
 import com.largeevent.management.model.BasicInfo.PositionModel;
 import com.largeevent.management.model.BasicInfo.VenueInfo;
-import com.largeevent.management.network.dto.BasicInfoDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.ActiveAreaDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.ActiveDateDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.ActiveModelDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.ActiveUnitDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.ActiveVenueDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.CartTypeDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.CertTypeDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.DictItemDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.EpidemicInfoDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.LocationInfoDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.PassRuleDTO;
-import com.largeevent.management.network.dto.BasicInfoDTO.PositionDTO;
-import com.largeevent.management.network.dto.MatrixAuthInfoDTO;
+import com.largeevent.management.network.dto.BasicInfoVo;
+import com.largeevent.management.network.dto.BasicInfoVo.ActiveAreaVo;
+import com.largeevent.management.network.dto.BasicInfoVo.ActiveDateVo;
+import com.largeevent.management.network.dto.BasicInfoVo.ActiveModelVo;
+import com.largeevent.management.network.dto.BasicInfoVo.ActiveUnitVo;
+import com.largeevent.management.network.dto.BasicInfoVo.ActiveVenueVo;
+import com.largeevent.management.network.dto.BasicInfoVo.CartTypeVo;
+import com.largeevent.management.network.dto.BasicInfoVo.CertTypeVo;
+import com.largeevent.management.network.dto.BasicInfoVo.DictItemVo;
+import com.largeevent.management.network.dto.BasicInfoVo.EpidemicInfoVo;
+import com.largeevent.management.network.dto.BasicInfoVo.LocationInfoVo;
+import com.largeevent.management.network.dto.BasicInfoVo.PassRuleVo;
+import com.largeevent.management.network.dto.BasicInfoVo.PositionVo;
+import com.largeevent.management.network.dto.MatrixAuthInfoVo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,14 +49,14 @@ public final class BasicInfoParser {
     }
 
     static BasicInfo parse(String payload) {
-        BasicInfoDTO dto = parseDto(payload);
+        BasicInfoVo dto = parseDto(payload);
         return fromDto(dto);
     }
 
     /** 解析接口 data JSON（兼容外层包了 code/data 的旧缓存） */
-    public static BasicInfoDTO parseDto(String payload) {
+    public static BasicInfoVo parseDto(String payload) {
         if (TextUtils.isEmpty(payload)) {
-            return new BasicInfoDTO();
+            return new BasicInfoVo();
         }
         try {
             JsonElement element = JsonParser.parseString(payload);
@@ -66,14 +66,14 @@ public final class BasicInfoParser {
                     element = root.get("data");
                 }
             }
-            BasicInfoDTO dto = GSON.fromJson(element, BasicInfoDTO.class);
-            return dto != null ? dto : new BasicInfoDTO();
+            BasicInfoVo dto = GSON.fromJson(element, BasicInfoVo.class);
+            return dto != null ? dto : new BasicInfoVo();
         } catch (Exception e) {
-            return new BasicInfoDTO();
+            return new BasicInfoVo();
         }
     }
 
-    public static BasicInfo fromDto(BasicInfoDTO dto) {
+    public static BasicInfo fromDto(BasicInfoVo dto) {
         if (dto == null) {
             return emptyBasicInfo();
         }
@@ -99,20 +99,20 @@ public final class BasicInfoParser {
                 null, null, null, null, null, null);
     }
 
-    private static List<ActiveModel> mapActiveModels(List<ActiveModelDTO> list) {
+    private static List<ActiveModel> mapActiveModels(List<ActiveModelVo> list) {
         List<ActiveModel> result = new ArrayList<>();
-        for (ActiveModelDTO obj : BasicInfoDTO.safeList(list)) {
+        for (ActiveModelVo obj : BasicInfoVo.safeList(list)) {
             if (obj == null) {
                 continue;
             }
             List<ActiveDateModel> dates = new ArrayList<>();
-            for (ActiveDateDTO d : BasicInfoDTO.safeList(obj.activeDateModelList)) {
+            for (ActiveDateVo d : BasicInfoVo.safeList(obj.activeDateModelList)) {
                 if (d != null) {
                     dates.add(new ActiveDateModel(d.date));
                 }
             }
             List<ActiveUnitModel> units = new ArrayList<>();
-            for (ActiveUnitDTO u : BasicInfoDTO.safeList(obj.activeUnitModelList)) {
+            for (ActiveUnitVo u : BasicInfoVo.safeList(obj.activeUnitModelList)) {
                 if (u != null) {
                     units.add(new ActiveUnitModel(u.unitName));
                 }
@@ -130,14 +130,14 @@ public final class BasicInfoParser {
         return result;
     }
 
-    private static List<ActiveVenueModel> mapVenues(List<ActiveVenueDTO> list) {
+    private static List<ActiveVenueModel> mapVenues(List<ActiveVenueVo> list) {
         List<ActiveVenueModel> result = new ArrayList<>();
-        for (ActiveVenueDTO obj : BasicInfoDTO.safeList(list)) {
+        for (ActiveVenueVo obj : BasicInfoVo.safeList(list)) {
             if (obj == null) {
                 continue;
             }
             List<ActiveAreaModel> areas = new ArrayList<>();
-            for (ActiveAreaDTO a : BasicInfoDTO.safeList(obj.activeAreaList)) {
+            for (ActiveAreaVo a : BasicInfoVo.safeList(obj.activeAreaList)) {
                 if (a == null) {
                     continue;
                 }
@@ -153,9 +153,9 @@ public final class BasicInfoParser {
         return result;
     }
 
-    private static List<PositionModel> mapPositions(List<PositionDTO> list) {
+    private static List<PositionModel> mapPositions(List<PositionVo> list) {
         List<PositionModel> result = new ArrayList<>();
-        for (PositionDTO obj : BasicInfoDTO.safeList(list)) {
+        for (PositionVo obj : BasicInfoVo.safeList(list)) {
             if (obj != null) {
                 result.add(new PositionModel(
                         obj.id, obj.name, obj.positionCode, obj.positionType,
@@ -165,9 +165,9 @@ public final class BasicInfoParser {
         return result;
     }
 
-    private static List<PassRuleModel> mapPassRules(List<PassRuleDTO> list) {
+    private static List<PassRuleModel> mapPassRules(List<PassRuleVo> list) {
         List<PassRuleModel> result = new ArrayList<>();
-        for (PassRuleDTO obj : BasicInfoDTO.safeList(list)) {
+        for (PassRuleVo obj : BasicInfoVo.safeList(list)) {
             if (obj != null) {
                 result.add(new PassRuleModel(
                         obj.id, obj.code, obj.passPositionCode, obj.timeType, obj.timeDesc));
@@ -176,9 +176,9 @@ public final class BasicInfoParser {
         return result;
     }
 
-    private static List<CartTypeModel> mapCartTypes(List<CartTypeDTO> list) {
+    private static List<CartTypeModel> mapCartTypes(List<CartTypeVo> list) {
         List<CartTypeModel> result = new ArrayList<>();
-        for (CartTypeDTO obj : BasicInfoDTO.safeList(list)) {
+        for (CartTypeVo obj : BasicInfoVo.safeList(list)) {
             if (obj != null) {
                 result.add(new CartTypeModel(obj.id, obj.positionCode, obj.subAppTypeCode));
             }
@@ -186,9 +186,9 @@ public final class BasicInfoParser {
         return result;
     }
 
-    private static List<CertTypeModel> mapCertTypes(List<CertTypeDTO> list) {
+    private static List<CertTypeModel> mapCertTypes(List<CertTypeVo> list) {
         List<CertTypeModel> result = new ArrayList<>();
-        for (CertTypeDTO obj : BasicInfoDTO.safeList(list)) {
+        for (CertTypeVo obj : BasicInfoVo.safeList(list)) {
             if (obj != null) {
                 result.add(new CertTypeModel(
                         obj.sortNumber, obj.dictType, obj.isLocked, obj.dictValue, obj.dictCode));
@@ -197,9 +197,9 @@ public final class BasicInfoParser {
         return result;
     }
 
-    private static List<LocationInfo> mapLocations(List<LocationInfoDTO> list) {
+    private static List<LocationInfo> mapLocations(List<LocationInfoVo> list) {
         List<LocationInfo> result = new ArrayList<>();
-        for (LocationInfoDTO obj : BasicInfoDTO.safeList(list)) {
+        for (LocationInfoVo obj : BasicInfoVo.safeList(list)) {
             if (obj != null) {
                 result.add(new LocationInfo(
                         obj.locationId, obj.parentId, obj.locationNo, obj.locationName,
@@ -210,9 +210,9 @@ public final class BasicInfoParser {
         return result;
     }
 
-    private static List<MatrixAuthInfo> mapMatrixAuth(List<MatrixAuthInfoDTO> list) {
+    private static List<MatrixAuthInfo> mapMatrixAuth(List<MatrixAuthInfoVo> list) {
         List<MatrixAuthInfo> result = new ArrayList<>();
-        for (MatrixAuthInfoDTO obj : BasicInfoDTO.safeList(list)) {
+        for (MatrixAuthInfoVo obj : BasicInfoVo.safeList(list)) {
             if (obj != null) {
                 result.add(new MatrixAuthInfo(
                         obj.authId, obj.name, obj.number, obj.venue, obj.venueVal,
@@ -226,9 +226,9 @@ public final class BasicInfoParser {
         return result;
     }
 
-    private static List<EpidemicInfo> mapEpidemics(List<EpidemicInfoDTO> list) {
+    private static List<EpidemicInfo> mapEpidemics(List<EpidemicInfoVo> list) {
         List<EpidemicInfo> result = new ArrayList<>();
-        for (EpidemicInfoDTO obj : BasicInfoDTO.safeList(list)) {
+        for (EpidemicInfoVo obj : BasicInfoVo.safeList(list)) {
             if (obj != null) {
                 result.add(new EpidemicInfo(
                         obj.epidemicId, obj.registrationNumber, obj.isDetectedStatus,
@@ -239,9 +239,9 @@ public final class BasicInfoParser {
         return result;
     }
 
-    private static List<VenueInfo> mapDictItems(List<DictItemDTO> list) {
+    private static List<VenueInfo> mapDictItems(List<DictItemVo> list) {
         List<VenueInfo> result = new ArrayList<>();
-        for (DictItemDTO obj : BasicInfoDTO.safeList(list)) {
+        for (DictItemVo obj : BasicInfoVo.safeList(list)) {
             if (obj != null) {
                 result.add(new VenueInfo(
                         obj.id, obj.createBy, obj.createTime, obj.updateBy, obj.updateTime,

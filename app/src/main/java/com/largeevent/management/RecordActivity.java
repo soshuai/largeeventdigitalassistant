@@ -57,7 +57,7 @@ public class RecordActivity extends AppCompatActivity {
     private NestedScrollView nestedScrollView;
 
     private RecordAdapter adapter;
-    private List<Object> allRecords = new ArrayList<>(); // 存储PersonCardCheckModel或CarCertificateCheckModel
+    private List<Object> allRecords = new ArrayList<>(); // 存储PersonCardCheckVo或CarCertificateCheckVo
     
     // 筛选条件
     private String selectedRecordType = "人证核验"; // null表示全部, "人证核验", "车证核验"
@@ -229,7 +229,7 @@ public class RecordActivity extends AppCompatActivity {
         if (isLoadingPerson) return;
         isLoadingPerson = true;
         
-        PersonCardCheckPageDTO pageDTO = new PersonCardCheckPageDTO();
+        PersonCardCheckPageAo pageDTO = new PersonCardCheckPageAo();
         pageDTO.current = (int) currentPersonPage;
         pageDTO.size = 10;
         pageDTO.verifyStatus = selectedVerifyStatus;
@@ -243,24 +243,24 @@ public class RecordActivity extends AppCompatActivity {
         pageDTO.endTime = dateRange[1];
         
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ApiResponse<PageResult<PersonCardCheckModel>>> call = apiService.selectPersonCheckRecord(pageDTO);
+        Call<ApiResponse<PageVo<PersonCardCheckVo>>> call = apiService.selectPersonCheckRecord(pageDTO);
         
-        call.enqueue(new Callback<ApiResponse<PageResult<PersonCardCheckModel>>>() {
+        call.enqueue(new Callback<ApiResponse<PageVo<PersonCardCheckVo>>>() {
             @Override
-            public void onResponse(@NonNull Call<ApiResponse<PageResult<PersonCardCheckModel>>> call,
-                                 @NonNull Response<ApiResponse<PageResult<PersonCardCheckModel>>> response) {
+            public void onResponse(@NonNull Call<ApiResponse<PageVo<PersonCardCheckVo>>> call,
+                                 @NonNull Response<ApiResponse<PageVo<PersonCardCheckVo>>> response) {
                 isLoadingPerson = false;
                 if (response.isSuccessful() && response.body() != null) {
-                    ApiResponse<PageResult<PersonCardCheckModel>> apiResponse = response.body();
+                    ApiResponse<PageVo<PersonCardCheckVo>> apiResponse = response.body();
                     if (apiResponse.isSuccess() && apiResponse.getData() != null) {
-                        PageResult<PersonCardCheckModel> pageResult = apiResponse.getData();
+                        PageVo<PersonCardCheckVo> pageResult = apiResponse.getData();
                         
                         // 保存总记录数
                         personTotalRecords = pageResult.total;
                         
-                        List<PersonCardCheckModel> records = copyPersonRecords(pageResult.records);
+                        List<PersonCardCheckVo> records = copyPersonRecords(pageResult.records);
                         if (!records.isEmpty()) {
-                            List<PersonCardCheckModel> finalRecords = records;
+                            List<PersonCardCheckVo> finalRecords = records;
                             runOnUiThread(() -> {
                                 allRecords.addAll(finalRecords);
                                 adapter.notifyDataSetChanged();
@@ -281,7 +281,7 @@ public class RecordActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFailure(@NonNull Call<ApiResponse<PageResult<PersonCardCheckModel>>> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<ApiResponse<PageVo<PersonCardCheckVo>>> call, @NonNull Throwable t) {
                 isLoadingPerson = false;
                 Log.e(TAG, "Load person records failed", t);
             }
@@ -292,7 +292,7 @@ public class RecordActivity extends AppCompatActivity {
         if (isLoadingCar) return;
         isLoadingCar = true;
         
-        CarCertificateCheckPageDTO pageDTO = new CarCertificateCheckPageDTO();
+        CarCertificateCheckPageAo pageDTO = new CarCertificateCheckPageAo();
         pageDTO.current = (int) currentCarPage;
         pageDTO.size = 10;
         pageDTO.verifyStatus = selectedVerifyStatus;
@@ -306,24 +306,24 @@ public class RecordActivity extends AppCompatActivity {
         pageDTO.endTime = dateRange[1];
         
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ApiResponse<PageResult<CarCertificateCheckModel>>> call = apiService.selectCarCertCheckRecord(pageDTO);
+        Call<ApiResponse<PageVo<CarCertificateCheckVo>>> call = apiService.selectCarCertCheckRecord(pageDTO);
         
-        call.enqueue(new Callback<ApiResponse<PageResult<CarCertificateCheckModel>>>() {
+        call.enqueue(new Callback<ApiResponse<PageVo<CarCertificateCheckVo>>>() {
             @Override
-            public void onResponse(@NonNull Call<ApiResponse<PageResult<CarCertificateCheckModel>>> call,
-                                 @NonNull Response<ApiResponse<PageResult<CarCertificateCheckModel>>> response) {
+            public void onResponse(@NonNull Call<ApiResponse<PageVo<CarCertificateCheckVo>>> call,
+                                 @NonNull Response<ApiResponse<PageVo<CarCertificateCheckVo>>> response) {
                 isLoadingCar = false;
                 if (response.isSuccessful() && response.body() != null) {
-                    ApiResponse<PageResult<CarCertificateCheckModel>> apiResponse = response.body();
+                    ApiResponse<PageVo<CarCertificateCheckVo>> apiResponse = response.body();
                     if (apiResponse.isSuccess() && apiResponse.getData() != null) {
-                        PageResult<CarCertificateCheckModel> pageResult = apiResponse.getData();
+                        PageVo<CarCertificateCheckVo> pageResult = apiResponse.getData();
                         
                         // 保存总记录数
                         carTotalRecords = pageResult.total;
                         
-                        List<CarCertificateCheckModel> records = copyCarRecords(pageResult.records);
+                        List<CarCertificateCheckVo> records = copyCarRecords(pageResult.records);
                         if (!records.isEmpty()) {
-                            List<CarCertificateCheckModel> finalRecords = records;
+                            List<CarCertificateCheckVo> finalRecords = records;
                             runOnUiThread(() -> {
                                 allRecords.addAll(finalRecords);
                                 adapter.notifyDataSetChanged();
@@ -344,20 +344,20 @@ public class RecordActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFailure(@NonNull Call<ApiResponse<PageResult<CarCertificateCheckModel>>> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<ApiResponse<PageVo<CarCertificateCheckVo>>> call, @NonNull Throwable t) {
                 isLoadingCar = false;
                 Log.e(TAG, "Load car records failed", t);
             }
         });
     }
 
-    private static List<PersonCardCheckModel> copyPersonRecords(
-            @Nullable List<? extends PersonCardCheckModel> source) {
-        List<PersonCardCheckModel> list = new ArrayList<>();
+    private static List<PersonCardCheckVo> copyPersonRecords(
+            @Nullable List<? extends PersonCardCheckVo> source) {
+        List<PersonCardCheckVo> list = new ArrayList<>();
         if (source == null) {
             return list;
         }
-        for (PersonCardCheckModel item : source) {
+        for (PersonCardCheckVo item : source) {
             if (item != null) {
                 list.add(item);
             }
@@ -365,13 +365,13 @@ public class RecordActivity extends AppCompatActivity {
         return list;
     }
 
-    private static List<CarCertificateCheckModel> copyCarRecords(
-            @Nullable List<? extends CarCertificateCheckModel> source) {
-        List<CarCertificateCheckModel> list = new ArrayList<>();
+    private static List<CarCertificateCheckVo> copyCarRecords(
+            @Nullable List<? extends CarCertificateCheckVo> source) {
+        List<CarCertificateCheckVo> list = new ArrayList<>();
         if (source == null) {
             return list;
         }
-        for (CarCertificateCheckModel item : source) {
+        for (CarCertificateCheckVo item : source) {
             if (item != null) {
                 list.add(item);
             }
@@ -486,14 +486,14 @@ public class RecordActivity extends AppCompatActivity {
             }
 
             void bind(Object record) {
-                if (record instanceof PersonCardCheckModel) {
-                    bindPersonRecord((PersonCardCheckModel) record);
-                } else if (record instanceof CarCertificateCheckModel) {
-                    bindCarRecord((CarCertificateCheckModel) record);
+                if (record instanceof PersonCardCheckVo) {
+                    bindPersonRecord((PersonCardCheckVo) record);
+                } else if (record instanceof CarCertificateCheckVo) {
+                    bindCarRecord((CarCertificateCheckVo) record);
                 }
             }
             
-            void bindPersonRecord(PersonCardCheckModel record) {
+            void bindPersonRecord(PersonCardCheckVo record) {
                 tvRecordTime.setText(TextUtils.isEmpty(record.verifyTime) ? "--" : record.verifyTime);
                 loadPersonRecordPhoto(record);
 
@@ -515,7 +515,7 @@ public class RecordActivity extends AppCompatActivity {
                                 : verifyStatusLabel(record.verifyStatus));
             }
 
-            private void loadPersonRecordPhoto(PersonCardCheckModel record) {
+            private void loadPersonRecordPhoto(PersonCardCheckVo record) {
                 String imageUrl = resolveRecordPhotoUrl(record.remark);
                 if (TextUtils.isEmpty(imageUrl)) {
                     imageUrl = resolveRecordPhotoUrl(record.imageName);
@@ -577,7 +577,7 @@ public class RecordActivity extends AppCompatActivity {
                 }
             }
             
-            void bindCarRecord(CarCertificateCheckModel record) {
+            void bindCarRecord(CarCertificateCheckVo record) {
                 tvRecordTime.setText(TextUtils.isEmpty(record.verifyTime) ? "--" : record.verifyTime);
 
                 String imageUrl = resolveRecordPhotoUrl(record.remark);

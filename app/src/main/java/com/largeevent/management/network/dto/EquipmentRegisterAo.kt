@@ -5,7 +5,7 @@ import com.google.gson.annotations.SerializedName
 /**
  * 设备信息注册请求 DTO（JSON 字段首字母大写，与后端约定一致）
  */
-class EquipmentRegisterDTO {
+class EquipmentRegisterAo {
     @SerializedName("AccountNumber")
     @JvmField
     var accountNumber: String? = null

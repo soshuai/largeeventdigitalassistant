@@ -20,7 +20,7 @@ import com.largeevent.management.hardware.ScanHelper;
 import com.largeevent.management.model.CertificateInfo;
 import com.largeevent.management.network.ApiService;
 import com.largeevent.management.network.NetworkManager;
-import com.largeevent.management.network.dto.ActiveUserBaseDTO;
+import com.largeevent.management.network.dto.ActiveUserBaseVo;
 import com.largeevent.management.network.dto.ApiResponse;
 
 import org.json.JSONObject;
@@ -187,10 +187,10 @@ public class QueryCertActivity extends AppCompatActivity {
 
         ApiService apiService = NetworkManager.getInstance().getApiService();
         apiService.getActiveUserByIdNumber(idNumber, idType)
-                .enqueue(new Callback<ApiResponse<List<ActiveUserBaseDTO>>>() {
+                .enqueue(new Callback<ApiResponse<List<ActiveUserBaseVo>>>() {
                     @Override
-                    public void onResponse(@NonNull Call<ApiResponse<List<ActiveUserBaseDTO>>> call,
-                                           @NonNull Response<ApiResponse<List<ActiveUserBaseDTO>>> response) {
+                    public void onResponse(@NonNull Call<ApiResponse<List<ActiveUserBaseVo>>> call,
+                                           @NonNull Response<ApiResponse<List<ActiveUserBaseVo>>> response) {
                         submitting = false;
                         btnSubmit.setEnabled(true);
                         if (!response.isSuccessful() || response.body() == null) {
@@ -198,19 +198,19 @@ public class QueryCertActivity extends AppCompatActivity {
                             openEmptyResult();
                             return;
                         }
-                        ApiResponse<List<ActiveUserBaseDTO>> body = response.body();
+                        ApiResponse<List<ActiveUserBaseVo>> body = response.body();
                         if (body.getCode() != 200) {
                             setStatus(TextUtils.isEmpty(body.getMessage()) ? "查询失败" : body.getMessage());
                             openEmptyResult();
                             return;
                         }
-                        List<ActiveUserBaseDTO> list = body.getData();
+                        List<ActiveUserBaseVo> list = body.getData();
                         if (list == null || list.isEmpty() || list.get(0) == null) {
                             setStatus("暂无该证件信息");
                             openEmptyResult();
                             return;
                         }
-                        ActiveUserBaseDTO dto = list.get(0);
+                        ActiveUserBaseVo dto = list.get(0);
                         ActiveUserParser.normalizeActiveUserDto(dto);
                         CertificateInfo info = ActiveUserParser.buildCertificateInfo(dto, dto.chipid);
                         if (info == null) {
@@ -228,7 +228,7 @@ public class QueryCertActivity extends AppCompatActivity {
                     }
 
                     @Override
-                    public void onFailure(@NonNull Call<ApiResponse<List<ActiveUserBaseDTO>>> call,
+                    public void onFailure(@NonNull Call<ApiResponse<List<ActiveUserBaseVo>>> call,
                                           @NonNull Throwable t) {
                         submitting = false;
                         btnSubmit.setEnabled(true);

@@ -5,7 +5,7 @@ import android.text.TextUtils;
 import androidx.annotation.Nullable;
 
 import com.largeevent.management.model.CertificateInfo;
-import com.largeevent.management.network.dto.ActiveUserBaseDTO;
+import com.largeevent.management.network.dto.ActiveUserBaseVo;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -28,14 +28,14 @@ public class ActiveUserParser {
     }
 
     /**
-     * 解析单个用户数据为 ActiveUserBaseDTO
+     * 解析单个用户数据为 ActiveUserBaseVo
      */
-    public static ActiveUserBaseDTO parseActiveUser(JSONObject json) {
+    public static ActiveUserBaseVo parseActiveUser(JSONObject json) {
         if (json == null) {
             return null;
         }
 
-        ActiveUserBaseDTO dto = new ActiveUserBaseDTO();
+        ActiveUserBaseVo dto = new ActiveUserBaseVo();
         dto.userId = json.optString("userId");
         dto.certId = json.optString("certId");
         dto.activeId = firstNonEmpty(json.optString("activeId"), dto.activityId);
@@ -121,7 +121,7 @@ public class ActiveUserParser {
     /**
      * Gson 反序列化后补齐标准字段（getActiveUser 走 Retrofit 时必须调用）。
      */
-    public static void normalizeActiveUserDto(ActiveUserBaseDTO dto) {
+    public static void normalizeActiveUserDto(ActiveUserBaseVo dto) {
         if (dto == null) {
             return;
         }
@@ -159,7 +159,7 @@ public class ActiveUserParser {
     }
 
     /** 有效期以 cardEffectiveDate / cardExpirationDate 为准，并回写兼容字段。 */
-    public static void syncCardValidityFields(ActiveUserBaseDTO dto) {
+    public static void syncCardValidityFields(ActiveUserBaseVo dto) {
         if (dto == null) {
             return;
         }
@@ -176,7 +176,7 @@ public class ActiveUserParser {
     }
 
     @Nullable
-    public static String resolveCardEffectiveDate(ActiveUserBaseDTO dto) {
+    public static String resolveCardEffectiveDate(ActiveUserBaseVo dto) {
         if (dto == null) {
             return null;
         }
@@ -184,7 +184,7 @@ public class ActiveUserParser {
     }
 
     @Nullable
-    public static String resolveCardExpirationDate(ActiveUserBaseDTO dto) {
+    public static String resolveCardExpirationDate(ActiveUserBaseVo dto) {
         if (dto == null) {
             return null;
         }
@@ -196,7 +196,7 @@ public class ActiveUserParser {
      * getActiveUser 常只返回 cardEffectiveDate / cardExpirationDate，不单独下发日卡字段。
      */
     @Nullable
-    public static String resolveTpDayPassDate(ActiveUserBaseDTO dto) {
+    public static String resolveTpDayPassDate(ActiveUserBaseVo dto) {
         if (dto == null) {
             return null;
         }
@@ -208,9 +208,9 @@ public class ActiveUserParser {
     }
 
     /**
-     * 从 ActiveUserBaseDTO 构建 CertificateInfo
+     * 从 ActiveUserBaseVo 构建 CertificateInfo
      */
-    public static CertificateInfo buildCertificateInfo(ActiveUserBaseDTO dto, String fallbackChipId) {
+    public static CertificateInfo buildCertificateInfo(ActiveUserBaseVo dto, String fallbackChipId) {
         if (dto == null) {
             return null;
         }
@@ -269,7 +269,7 @@ public class ActiveUserParser {
             if (obj == null) {
                 continue;
             }
-            ActiveUserBaseDTO dto = parseActiveUser(obj);
+            ActiveUserBaseVo dto = parseActiveUser(obj);
             String chipId = obj.optString("chipid", obj.optString("tagNo2"));
             CertificateInfo info = buildCertificateInfo(dto, chipId);
             if (info == null) {
@@ -369,7 +369,7 @@ public class ActiveUserParser {
     /**
      * 姓名：中文姓+中文名优先，其次英文姓+英文名。
      */
-    public static String resolveChineseNameFromDto(ActiveUserBaseDTO dto) {
+    public static String resolveChineseNameFromDto(ActiveUserBaseVo dto) {
         if (dto == null) {
             return "";
         }
@@ -396,7 +396,7 @@ public class ActiveUserParser {
      * 查验详情证件照：优先 getActiveUser.verifyPhoto（URL 或 data:image base64）。
      */
     @Nullable
-    public static String resolveCertificateDisplayPhoto(@Nullable ActiveUserBaseDTO dto) {
+    public static String resolveCertificateDisplayPhoto(@Nullable ActiveUserBaseVo dto) {
         if (dto == null) {
             return null;
         }
@@ -413,12 +413,12 @@ public class ActiveUserParser {
 
     /** 人脸比对等仅需 HTTP 头像 URL 的场景 */
     @Nullable
-    public static String resolveFaceMatchCertPhotoUrl(@Nullable ActiveUserBaseDTO dto) {
+    public static String resolveFaceMatchCertPhotoUrl(@Nullable ActiveUserBaseVo dto) {
         return resolveHttpPhotoUrl(dto);
     }
 
     @Nullable
-    private static String resolveHttpPhotoUrl(@Nullable ActiveUserBaseDTO dto) {
+    private static String resolveHttpPhotoUrl(@Nullable ActiveUserBaseVo dto) {
         if (dto == null) {
             return null;
         }
@@ -434,7 +434,7 @@ public class ActiveUserParser {
         return null;
     }
 
-    private static String resolvePhotoUrlFromDto(ActiveUserBaseDTO dto) {
+    private static String resolvePhotoUrlFromDto(ActiveUserBaseVo dto) {
         String display = resolveCertificateDisplayPhoto(dto);
         return display == null ? "" : display;
     }
@@ -482,7 +482,7 @@ public class ActiveUserParser {
     }
 
     private static String resolvePhotoUrl(JSONObject json) {
-        ActiveUserBaseDTO tmp = new ActiveUserBaseDTO();
+        ActiveUserBaseVo tmp = new ActiveUserBaseVo();
         tmp.cardReduceImage = json.optString("cardReduceImage");
         tmp.verifyPhoto = json.optString("verifyPhoto");
         tmp.photo = json.optString("photo");

@@ -29,8 +29,8 @@ import com.largeevent.management.RecordActivity;
 import com.largeevent.management.data.*;
 import com.largeevent.management.model.*;
 import com.largeevent.management.network.dto.ApiResponse;
-import com.largeevent.management.network.dto.CarCertificateDTO;
-import com.largeevent.management.network.dto.ReceiveCheckCarDTO;
+import com.largeevent.management.network.dto.CarCertificateVo;
+import com.largeevent.management.network.dto.ReceiveCheckCarAo;
 import com.largeevent.management.nfc.NfcCallback;
 import com.largeevent.management.network.*;
 import com.largeevent.management.widget.CommonConfig;
@@ -64,7 +64,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     private Button btnVerify;
     private InitializationRepository initializationRepository;
     private String currentChipId;
-    private CarCertificateDTO currentCarDTO;  // 当前车证DTO
+    private CarCertificateVo currentCarDTO;  // 当前车证DTO
     private boolean verifying;
     private final List<String> currentEpcList = new ArrayList<>();
     private boolean isReading = false;
@@ -418,11 +418,11 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
 
         // 使用 ApiService 调用接口，传入 activeId 和 chipId
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ApiResponse<List<CarCertificateDTO>>> call = apiService.getActiveCarCert(activeId, chipId);
+        Call<ApiResponse<List<CarCertificateVo>>> call = apiService.getActiveCarCert(activeId, chipId);
 
-        call.enqueue(new Callback<ApiResponse<List<CarCertificateDTO>>>() {
+        call.enqueue(new Callback<ApiResponse<List<CarCertificateVo>>>() {
             @Override
-            public void onResponse(@NonNull Call<ApiResponse<List<CarCertificateDTO>>> call, @NonNull Response<ApiResponse<List<CarCertificateDTO>>> response) {
+            public void onResponse(@NonNull Call<ApiResponse<List<CarCertificateVo>>> call, @NonNull Response<ApiResponse<List<CarCertificateVo>>> response) {
                 if (!isAdded())
                     return;
                 requireActivity().runOnUiThread(() -> {
@@ -436,7 +436,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
                         return;
                     }
 
-                    ApiResponse<List<CarCertificateDTO>> apiResponse = response.body();
+                    ApiResponse<List<CarCertificateVo>> apiResponse = response.body();
                     if (!apiResponse.isSuccess()) {
                         setVerifying(false);
                         VerificationResult invalid = new VerificationResult(
@@ -447,7 +447,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
                         return;
                     }
 
-                    List<CarCertificateDTO> carList = apiResponse.getData();
+                    List<CarCertificateVo> carList = apiResponse.getData();
                     if (carList == null || carList.isEmpty()) {
                         setVerifying(false);
                         VerificationResult invalid = new VerificationResult(
@@ -459,7 +459,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
                     }
 
                     // 获取第一条数据
-                    CarCertificateDTO carDTO = carList.get(0);
+                    CarCertificateVo carDTO = carList.get(0);
                     currentCarDTO = carDTO;  // 保存当前DTO
                     CertificateInfo info = CarCertificateParser.buildCertificateInfo(carDTO, chipId);
                     // 检查车牌号是否为空
@@ -478,7 +478,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
             }
 
             @Override
-            public void onFailure(@NonNull Call<ApiResponse<List<CarCertificateDTO>>> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<ApiResponse<List<CarCertificateVo>>> call, @NonNull Throwable t) {
                 if (!isAdded())
                     return;
                 requireActivity().runOnUiThread(() -> {
@@ -603,7 +603,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     private void uploadCheckRecord(VerificationResult result) {
         try {
             BasicInfo basicInfo = initializationRepository.getBasicInfo();
-            ReceiveCheckCarDTO body = ReceiveCheckCarBuilder.build(
+            ReceiveCheckCarAo body = ReceiveCheckCarBuilder.build(
                     requireContext(),
                     result,
                     currentCarDTO,
@@ -687,7 +687,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         recordAndOpen(result, currentCarDTO);  // 使用当前的 currentCarDTO
     }
 
-    private void recordAndOpen(VerificationResult result, @Nullable CarCertificateDTO carDTO) {
+    private void recordAndOpen(VerificationResult result, @Nullable CarCertificateVo carDTO) {
         Intent intent = new Intent(requireContext(), CarAndPersonDetailActivity.class);
         intent.putExtra(CarAndPersonDetailActivity.EXTRA_RESULT, result);
 
@@ -699,7 +699,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         startActivity(intent);
     }
 
-    private String getRequiredPermissionSummary(CarCertificateDTO carDTO) {
+    private String getRequiredPermissionSummary(CarCertificateVo carDTO) {
         if (carDTO == null) {
             return "无车辆信息";
         }

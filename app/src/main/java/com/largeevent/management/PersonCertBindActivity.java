@@ -29,7 +29,7 @@ import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.network.ApiService;
 import com.largeevent.management.network.NetworkManager;
 import com.largeevent.management.network.dto.ApiResponse;
-import com.largeevent.management.network.dto.UpdateCardInfoDTO;
+import com.largeevent.management.network.dto.UpdateCardInfoAo;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
@@ -171,7 +171,7 @@ public class PersonCertBindActivity extends AppCompatActivity {
 
         String activityId = AppPreferences.getLastActiveId(this);
 
-        UpdateCardInfoDTO dto = new UpdateCardInfoDTO();
+        UpdateCardInfoAo dto = new UpdateCardInfoAo();
         dto.accId = accId;
         dto.chipId = chipId;
         dto.eventCode = eventCode;

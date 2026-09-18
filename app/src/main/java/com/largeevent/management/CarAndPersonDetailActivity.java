@@ -41,9 +41,9 @@ import com.largeevent.management.model.VerificationResultType;
 import com.largeevent.management.network.ApiService;
 import com.largeevent.management.network.NetworkManager;
 import com.largeevent.management.network.dto.ApiResponse;
-import com.largeevent.management.network.dto.CarCertificateDTO;
-import com.largeevent.management.network.dto.MatrixAuthInfoDTO;
-import com.largeevent.management.network.dto.ReplacePhotoDTO;
+import com.largeevent.management.network.dto.CarCertificateVo;
+import com.largeevent.management.network.dto.MatrixAuthInfoVo;
+import com.largeevent.management.network.dto.ReplacePhotoAo;
 import com.largeevent.management.widget.CommonConfig;
 
 import java.io.ByteArrayOutputStream;
@@ -84,7 +84,7 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
     private TextView tvBindingAction;
     private VerificationResult currentResult;
     private InitializationRepository initRepository;
-    private CarCertificateDTO carDTO;  // 保存车证DTO
+    private CarCertificateVo carDTO;  // 保存车证DTO
     private CameraHelper cameraHelper;
     private String latestPhotoPath;
 
@@ -166,7 +166,7 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
         currentResult = result;
 
         // 获取 carDTO
-        carDTO = (CarCertificateDTO) getIntent().getSerializableExtra("car_dto");
+        carDTO = (CarCertificateVo) getIntent().getSerializableExtra("car_dto");
         tvResultTitle.setText(result.title);
         applyResultDescriptionStyle(result);
         if (result.type == VerificationResultType.PASS) {
@@ -268,7 +268,7 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
                     intent.putExtra(CarPlateBindActivity.EXTRA_CERT_INFO, currentResult.certificateInfo);
                     intent.putExtra(CarPlateBindActivity.EXTRA_CHIP_ID, currentResult.chipIdForBinding);
 
-                    // 如果是车证绑定，传递 CarCertificateDTO
+                    // 如果是车证绑定，传递 CarCertificateVo
                     if (carDTO != null) {
                         intent.putExtra(CarPlateBindActivity.EXTRA_CAR_DTO, carDTO);
                     }
@@ -433,14 +433,14 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
     /**
      * 显示车证场馆权限和停车通行码
      */
-    private void displayCarPermissions(CarCertificateDTO carDTO) {
+    private void displayCarPermissions(CarCertificateVo carDTO) {
         if (carDTO == null) {
             setPermissionPlaceholders();
             return;
         }
         tvPartitionPermission.setVisibility(View.GONE);
         try {
-            List<MatrixAuthInfoDTO> authList = loadVehicleMatrixAuthList();
+            List<MatrixAuthInfoVo> authList = loadVehicleMatrixAuthList();
             String venueNames = mapCarPrivilegeNames(
                     carDTO.venueCodeChildren,
                     MatrixAuthSelectionHelper.collectVenueLabels(authList));
@@ -457,14 +457,14 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
     }
 
     @Nullable
-    private List<MatrixAuthInfoDTO> loadVehicleMatrixAuthList() {
+    private List<MatrixAuthInfoVo> loadVehicleMatrixAuthList() {
         String activeId = AppPreferences.getLastActiveId(this);
         String json = AppPreferences.getDeviceMatrixAuthJson(this, activeId, ModuleType.VEHICLE);
         if (TextUtils.isEmpty(json)) {
             return null;
         }
         try {
-            Type type = new TypeToken<List<MatrixAuthInfoDTO>>() {
+            Type type = new TypeToken<List<MatrixAuthInfoVo>>() {
             }.getType();
             return new Gson().fromJson(json, type);
         } catch (Exception e) {
@@ -599,7 +599,7 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
         }
 
         // activityId / eventCode 取自 getActiveUser 的 activityId、activityCode
-        ReplacePhotoDTO replacePhotoDTO = new ReplacePhotoDTO(accId, eventCode, base64Img);
+        ReplacePhotoAo replacePhotoDTO = new ReplacePhotoAo(accId, eventCode, base64Img);
         replacePhotoDTO.activityId = activityId;
 
         // 调用接口

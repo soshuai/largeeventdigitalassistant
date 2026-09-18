@@ -3,7 +3,7 @@ package com.largeevent.management.network.dto
 /**
  * 更新（绑定）证件信息请求 DTO
  */
-class UpdateCardInfoDTO {
+class UpdateCardInfoAo {
     /** 主键 ID（可选）  */
     @JvmField
     var accId: String? = null

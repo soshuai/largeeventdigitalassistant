@@ -1,6 +1,6 @@
 package com.largeevent.management.network.dto
 
-class FaceVerifyResponse {
+class FaceVerifyVo {
     val isSuccess: Boolean = false
     val message: String? = null
 }

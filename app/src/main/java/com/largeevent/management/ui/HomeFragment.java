@@ -346,11 +346,11 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
 
         // 第一步：获取活动列表
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call = apiService.getActiveInfo();
+        Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>>> call = apiService.getActiveInfo();
         
-        call.enqueue(new Callback<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>>() {
+        call.enqueue(new Callback<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>>>() {
             @Override
-            public void onResponse(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call, @NonNull Response<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> response) {
+            public void onResponse(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>>> call, @NonNull Response<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>>> response) {
                 if (!isAdded()) return;
                 
                 try {
@@ -358,12 +358,12 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
                         throw new IOException("获取活动列表失败，状态码：" + response.code());
                     }
                     
-                    ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>> apiResponse = response.body();
+                    ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>> apiResponse = response.body();
                     if (apiResponse == null || apiResponse.getCode() != 200) {
                         throw new IOException(apiResponse != null ? apiResponse.getMessage() : "活动列表接口返回错误");
                     }
                     
-                    List<com.largeevent.management.network.dto.ActiveInfoDTO> activeList = apiResponse.getData();
+                    List<com.largeevent.management.network.dto.ActiveInfoVo> activeList = apiResponse.getData();
                     if (activeList == null || activeList.isEmpty()) {
                         throw new IOException("活动列表为空");
                     }
@@ -393,7 +393,7 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
             }
 
             @Override
-            public void onFailure(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>>> call, @NonNull Throwable t) {
                 if (!isAdded()) return;
                 handleInitializationError("网络错误：" + t.getMessage());
             }
@@ -403,26 +403,26 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
     private void fetchBasicInfoWithEventCode(String baseUrl, String eventCode) {
         ApiService apiService = NetworkManager.getInstance().getApiService();
         String eqpId = AppPreferences.ensureDeviceCode(requireContext());
-        Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call =
+        Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> call =
                 apiService.getBasicInfo(eventCode, eqpId);
 
-        call.enqueue(new Callback<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>>() {
+        call.enqueue(new Callback<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>>() {
             @Override
             public void onResponse(
-                    @NonNull Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
-                    @NonNull Response<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> response) {
+                    @NonNull Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> call,
+                    @NonNull Response<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> response) {
                 if (!isAdded()) return;
 
                 try {
                     if (!response.isSuccessful()) {
                         throw new IOException("下载失败，状态码：" + response.code());
                     }
-                    ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO> apiResponse = response.body();
+                    ApiResponse<com.largeevent.management.network.dto.BasicInfoVo> apiResponse = response.body();
                     if (apiResponse == null || !apiResponse.isSuccess()) {
                         throw new IOException(apiResponse != null
                                 ? apiResponse.getMessage() : "基础信息接口返回错误");
                     }
-                    com.largeevent.management.network.dto.BasicInfoDTO data = apiResponse.getData();
+                    com.largeevent.management.network.dto.BasicInfoVo data = apiResponse.getData();
                     if (data == null) {
                         throw new IOException("基础信息数据为空");
                     }
@@ -439,7 +439,7 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
 
             @Override
             public void onFailure(
-                    @NonNull Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
+                    @NonNull Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> call,
                     @NonNull Throwable t) {
                 if (!isAdded()) return;
                 handleInitializationError("网络错误：" + t.getMessage());
@@ -450,11 +450,11 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
     // 仅获取活动列表（用于定时刷新）
     private void fetchActiveList(String baseUrl) {
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call = apiService.getActiveInfo();
+        Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>>> call = apiService.getActiveInfo();
         
-        call.enqueue(new Callback<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>>() {
+        call.enqueue(new Callback<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>>>() {
             @Override
-            public void onResponse(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call, @NonNull Response<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> response) {
+            public void onResponse(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>>> call, @NonNull Response<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>>> response) {
                 if (!isAdded()) return;
                 
                 try {
@@ -463,13 +463,13 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
                         return;
                     }
                     
-                    ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>> apiResponse = response.body();
+                    ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>> apiResponse = response.body();
                     if (apiResponse == null || apiResponse.getCode() != 200) {
                         android.util.Log.w("HomeFragment", "自动刷新活动列表失败：" + (apiResponse != null ? apiResponse.getMessage() : "接口返回错误"));
                         return;
                     }
                     
-                    List<com.largeevent.management.network.dto.ActiveInfoDTO> activeList = apiResponse.getData();
+                    List<com.largeevent.management.network.dto.ActiveInfoVo> activeList = apiResponse.getData();
                     if (activeList == null || activeList.isEmpty()) {
                         android.util.Log.w("HomeFragment", "自动刷新活动列表为空");
                         return;
@@ -484,7 +484,7 @@ public class HomeFragment extends Fragment implements SharedPreferences.OnShared
             }
 
             @Override
-            public void onFailure(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoDTO>>> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<ApiResponse<List<com.largeevent.management.network.dto.ActiveInfoVo>>> call, @NonNull Throwable t) {
                 if (!isAdded()) return;
                 android.util.Log.w("HomeFragment", "自动刷新活动列表网络错误：" + t.getMessage());
             }

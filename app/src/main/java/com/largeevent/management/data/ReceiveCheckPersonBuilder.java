@@ -9,8 +9,8 @@ import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.CertificateInfo;
 import com.largeevent.management.model.VerificationResult;
 import com.largeevent.management.model.VerificationResultType;
-import com.largeevent.management.network.dto.ActiveUserBaseDTO;
-import com.largeevent.management.network.dto.ReceiveCheckPersonDTO;
+import com.largeevent.management.network.dto.ActiveUserBaseVo;
+import com.largeevent.management.network.dto.ReceiveCheckPersonAo;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -28,14 +28,14 @@ public final class ReceiveCheckPersonBuilder {
     private ReceiveCheckPersonBuilder() {
     }
 
-    public static ReceiveCheckPersonDTO build(
+    public static ReceiveCheckPersonAo build(
             Context context,
             VerificationResult result,
-            @Nullable ActiveUserBaseDTO user,
+            @Nullable ActiveUserBaseVo user,
             @Nullable CertificateInfo info,
             @Nullable BasicInfo basicInfo,
             @Nullable String photoBase64) {
-        ReceiveCheckPersonDTO dto = new ReceiveCheckPersonDTO();
+        ReceiveCheckPersonAo dto = new ReceiveCheckPersonAo();
         String activeId = AppPreferences.getLastActiveId(context);
         if (user != null) {
             ActiveUserParser.normalizeActiveUserDto(user);
@@ -98,7 +98,7 @@ public final class ReceiveCheckPersonBuilder {
 
     @Nullable
     private static String resolvePersonName(
-            @Nullable ActiveUserBaseDTO user, @Nullable CertificateInfo info) {
+            @Nullable ActiveUserBaseVo user, @Nullable CertificateInfo info) {
         if (user != null && !TextUtils.isEmpty(user.chineseName)) {
             return user.chineseName.trim();
         }
@@ -109,7 +109,7 @@ public final class ReceiveCheckPersonBuilder {
     }
 
     private static String resolveCardNumber(
-            @Nullable ActiveUserBaseDTO user, @Nullable CertificateInfo info) {
+            @Nullable ActiveUserBaseVo user, @Nullable CertificateInfo info) {
         if (user != null && !TextUtils.isEmpty(user.registrationNumber)) {
             return user.registrationNumber.trim();
         }
@@ -120,7 +120,7 @@ public final class ReceiveCheckPersonBuilder {
     }
 
     private static void applyEpidemicStatus(
-            ReceiveCheckPersonDTO dto,
+            ReceiveCheckPersonAo dto,
             @Nullable BasicInfo basicInfo,
             @Nullable String cardNumber) {
         dto.isDetectedStatus = EPIDEMIC_DISABLED;

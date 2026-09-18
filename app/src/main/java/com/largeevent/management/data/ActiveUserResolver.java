@@ -2,7 +2,7 @@ package com.largeevent.management.data;
 
 import androidx.annotation.Nullable;
 
-import com.largeevent.management.network.dto.ActiveUserBaseDTO;
+import com.largeevent.management.network.dto.ActiveUserBaseVo;
 
 import java.util.List;
 
@@ -13,8 +13,8 @@ public final class ActiveUserResolver {
     }
 
     @Nullable
-    public static ActiveUserBaseDTO resolve(
-            @Nullable List<ActiveUserBaseDTO> list,
+    public static ActiveUserBaseVo resolve(
+            @Nullable List<ActiveUserBaseVo> list,
             @Nullable String chipId,
             @Nullable String subUnitName) {
         return PersonVerificationHelper.selectBestUser(list, chipId, subUnitName);

@@ -6,7 +6,7 @@ package com.largeevent.management.network.dto;
  * 对应后端统一结构：{@code { "code": 200, "message"/"msg": "...", "data": T }}。
  * 业务成功判断请用 {@link #isSuccess()}（code == 200）。
  *
- * @param <T> data 字段的业务数据类型（如 {@link BasicInfoDTO}、列表、字符串等）
+ * @param <T> data 字段的业务数据类型（如 {@link BasicInfoVo}、列表、字符串等）
  */
 public class ApiResponse<T> {
     /** 业务状态码，200 表示成功 */

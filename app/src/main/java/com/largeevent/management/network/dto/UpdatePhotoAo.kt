@@ -3,7 +3,7 @@ package com.largeevent.management.network.dto
 /**
  * 更新人员照片请求 DTO
  */
-class UpdatePhotoDTO {
+class UpdatePhotoAo {
     /** 活动编码  */
 //    var activeCode: String? = null
 

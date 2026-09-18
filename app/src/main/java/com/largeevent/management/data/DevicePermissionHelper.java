@@ -7,7 +7,7 @@ import android.util.Log;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.BasicInfo.MatrixAuthInfo;
 import com.largeevent.management.model.BasicInfo.VenueInfo;
-import com.largeevent.management.network.dto.MatrixAuthInfoDTO;
+import com.largeevent.management.network.dto.MatrixAuthInfoVo;
 
 import androidx.annotation.Nullable;
 
@@ -114,12 +114,12 @@ public final class DevicePermissionHelper {
     }
 
     /** 从 getMatrixAuthInfoList 接口数据解析设备权限 code 集合 */
-    public static PermissionSets fromMatrixAuthDtoList(@Nullable List<MatrixAuthInfoDTO> authList) {
+    public static PermissionSets fromMatrixAuthDtoList(@Nullable List<MatrixAuthInfoVo> authList) {
         PermissionSets sets = new PermissionSets();
         if (authList == null) {
             return sets;
         }
-        for (MatrixAuthInfoDTO auth : authList) {
+        for (MatrixAuthInfoVo auth : authList) {
             if (auth == null) {
                 continue;
             }

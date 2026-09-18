@@ -6,7 +6,7 @@ package com.largeevent.management.network.dto;
  * 接口：{@code GET androidNew/api/getActiveInfo}，位于 {@link ApiResponse#getData()} 的列表元素。
  * 字段与接口 JSON 保持 camelCase 一致。
  */
-public class ActiveInfoDTO {
+public class ActiveInfoVo {
     /** 活动 ID */
     public String id;
     /** 创建人 */
