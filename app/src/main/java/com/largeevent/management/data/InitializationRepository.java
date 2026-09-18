@@ -40,12 +40,12 @@ public class InitializationRepository {
         return insertPayload(serverUrl, payload.toString());
     }
 
-    /** 保存 getBasicInfo 的 data（{@link com.largeevent.management.network.dto.BasicInfoDTO}） */
+    /** 保存 getBasicInfo 的 data（{@link com.largeevent.management.network.dto.BasicInfoVo}） */
     public synchronized long saveBaseInfo(String serverUrl,
-                                          com.largeevent.management.network.dto.BasicInfoDTO dto)
+                                          com.largeevent.management.network.dto.BasicInfoVo dto)
             throws JSONException {
         String json = com.largeevent.management.network.NetworkManager.getInstance()
-                .getGson().toJson(dto != null ? dto : new com.largeevent.management.network.dto.BasicInfoDTO());
+                .getGson().toJson(dto != null ? dto : new com.largeevent.management.network.dto.BasicInfoVo());
         return saveBaseInfo(serverUrl, json);
     }
 

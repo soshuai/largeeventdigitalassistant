@@ -7,7 +7,7 @@ import com.google.gson.annotations.SerializedName
  * 人脸比对参数 DTO（POST /baidu/faceMatch 请求体数组元素）
  */
 @Keep
-data class FaceMatchParamDTO(
+data class FaceMatchParamAo(
     /** 图片内容（Base64 或 URL） */
     var image: String? = null,
 

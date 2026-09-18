@@ -35,10 +35,10 @@ import com.largeevent.management.model.EventInfo;
 import com.largeevent.management.model.EventSession;
 
 import com.largeevent.management.network.*;
-import com.largeevent.management.network.dto.ActiveUserBaseDTO;
+import com.largeevent.management.network.dto.ActiveUserBaseVo;
 import com.largeevent.management.network.dto.ApiResponse;
-import com.largeevent.management.network.dto.EquipmentRegisterDTO;
-import com.largeevent.management.network.dto.MatrixAuthInfoDTO;
+import com.largeevent.management.network.dto.EquipmentRegisterAo;
+import com.largeevent.management.network.dto.MatrixAuthInfoVo;
 import com.largeevent.management.widget.FlowLayout;
 
 import org.json.JSONArray;
@@ -573,7 +573,7 @@ public class EventSettingsActivity extends AppCompatActivity {
 
     /** 用当前模块缓存的 matrixAuth 列表渲染权限芯片（全部为设备已有权限） */
     private void renderCachedMatrixAuthPermissions() {
-        List<MatrixAuthInfoDTO> authList = loadCachedMatrixAuthList();
+        List<MatrixAuthInfoVo> authList = loadCachedMatrixAuthList();
         bindPermissionChipsFromAuthList(authList);
         DevicePermissionHelper.PermissionSets sets = AppPreferences.getDeviceMatrixAuthCodes(
                 this, currentActiveId, currentModuleType);
@@ -586,14 +586,14 @@ public class EventSettingsActivity extends AppCompatActivity {
     }
 
     @Nullable
-    private List<MatrixAuthInfoDTO> loadCachedMatrixAuthList() {
+    private List<MatrixAuthInfoVo> loadCachedMatrixAuthList() {
         String json = AppPreferences.getDeviceMatrixAuthJson(
                 this, currentActiveId, currentModuleType);
         if (TextUtils.isEmpty(json)) {
             return null;
         }
         try {
-            Type type = new TypeToken<List<MatrixAuthInfoDTO>>() {
+            Type type = new TypeToken<List<MatrixAuthInfoVo>>() {
             }.getType();
             return new Gson().fromJson(json, type);
         } catch (Exception e) {
@@ -602,7 +602,7 @@ public class EventSettingsActivity extends AppCompatActivity {
         }
     }
 
-    private void bindPermissionChipsFromAuthList(@Nullable List<MatrixAuthInfoDTO> authList) {
+    private void bindPermissionChipsFromAuthList(@Nullable List<MatrixAuthInfoVo> authList) {
         clearPermissionChips();
         applyPermissionSectionVisibility();
         if (authList == null || authList.isEmpty()) {
@@ -655,7 +655,7 @@ public class EventSettingsActivity extends AppCompatActivity {
                 Toast.LENGTH_SHORT).show();
 
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        EquipmentRegisterDTO dto = buildEquipmentRegisterDTO(eqpId, moduleForRequest);
+        EquipmentRegisterAo dto = buildEquipmentRegisterAo(eqpId, moduleForRequest);
 
         apiService.registerEquipment(dto).enqueue(new retrofit2.Callback<ResponseBody>() {
             @Override
@@ -690,28 +690,28 @@ public class EventSettingsActivity extends AppCompatActivity {
     private void fetchMatrixAuthInfo(String eqpId, int moduleType) {
         ApiService apiService = NetworkManager.getInstance().getApiService();
         // 人证走 getMatrixAuthInfoList，车证走 getCarMatrixAuthList；入参返参与后续处理相同
-        retrofit2.Call<ApiResponse<java.util.List<MatrixAuthInfoDTO>>> authCall =
+        retrofit2.Call<ApiResponse<java.util.List<MatrixAuthInfoVo>>> authCall =
                 moduleType == ModuleType.VEHICLE
                         ? apiService.getCarMatrixAuthList(currentActiveId, eqpId)
                         : apiService.getMatrixAuthInfoList(currentActiveId, eqpId);
-        authCall.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<MatrixAuthInfoDTO>>>() {
+        authCall.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<MatrixAuthInfoVo>>>() {
                     @Override
-                    public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<MatrixAuthInfoDTO>>> call,
-                                           @NonNull retrofit2.Response<ApiResponse<java.util.List<MatrixAuthInfoDTO>>> response) {
+                    public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<MatrixAuthInfoVo>>> call,
+                                           @NonNull retrofit2.Response<ApiResponse<java.util.List<MatrixAuthInfoVo>>> response) {
                         isRegistering = false;
                         if (!response.isSuccessful() || response.body() == null) {
                             Toast.makeText(EventSettingsActivity.this,
                                     "获取设备权限失败", Toast.LENGTH_SHORT).show();
                             return;
                         }
-                        ApiResponse<java.util.List<MatrixAuthInfoDTO>> apiResponse = response.body();
+                        ApiResponse<java.util.List<MatrixAuthInfoVo>> apiResponse = response.body();
                         if (apiResponse.getCode() != 200) {
                             Toast.makeText(EventSettingsActivity.this,
                                     "获取设备权限失败：" + apiResponse.getMessage(),
                                     Toast.LENGTH_SHORT).show();
                             return;
                         }
-                        java.util.List<MatrixAuthInfoDTO> authList = apiResponse.getData();
+                        java.util.List<MatrixAuthInfoVo> authList = apiResponse.getData();
                         DevicePermissionHelper.PermissionSets sets =
                                 DevicePermissionHelper.fromMatrixAuthDtoList(authList);
                         AppPreferences.setDeviceMatrixAuthCodes(
@@ -747,7 +747,7 @@ public class EventSettingsActivity extends AppCompatActivity {
                     }
 
                     @Override
-                    public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<MatrixAuthInfoDTO>>> call,
+                    public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<MatrixAuthInfoVo>>> call,
                                           @NonNull Throwable t) {
                         isRegistering = false;
                         Toast.makeText(EventSettingsActivity.this,
@@ -756,8 +756,8 @@ public class EventSettingsActivity extends AppCompatActivity {
                 });
     }
 
-    private EquipmentRegisterDTO buildEquipmentRegisterDTO(String eqpId, int moduleType) {
-        EquipmentRegisterDTO dto = new EquipmentRegisterDTO();
+    private EquipmentRegisterAo buildEquipmentRegisterAo(String eqpId, int moduleType) {
+        EquipmentRegisterAo dto = new EquipmentRegisterAo();
         dto.accountNumber = "";
         dto.activityId = currentActiveId;
         dto.carNumber = "";
@@ -929,31 +929,31 @@ public class EventSettingsActivity extends AppCompatActivity {
         btnSyncData.setText("同步中...");
 
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        retrofit2.Call<ApiResponse<java.util.List<ActiveUserBaseDTO>>> call =
+        retrofit2.Call<ApiResponse<java.util.List<ActiveUserBaseVo>>> call =
                 apiService.getActiveUser(currentActiveId, null);
 
-        call.enqueue(new retrofit2.Callback<ApiResponse<List<ActiveUserBaseDTO>>>() {
+        call.enqueue(new retrofit2.Callback<ApiResponse<List<ActiveUserBaseVo>>>() {
             @Override
-            public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveUserBaseDTO>>> call,
-                                   @NonNull retrofit2.Response<ApiResponse<java.util.List<ActiveUserBaseDTO>>> response) {
+            public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveUserBaseVo>>> call,
+                                   @NonNull retrofit2.Response<ApiResponse<java.util.List<ActiveUserBaseVo>>> response) {
                 runOnUiThread(() -> {
                     if (!response.isSuccessful()) {
                         handleSyncFailure("数据同步失败：服务器错误");
                         return;
                     }
 
-                    ApiResponse<java.util.List<ActiveUserBaseDTO>> apiResponse = response.body();
+                    ApiResponse<java.util.List<ActiveUserBaseVo>> apiResponse = response.body();
                     if (apiResponse == null || apiResponse.getCode() != 200) {
                         handleSyncFailure("数据同步失败：" + (apiResponse != null ? apiResponse.getMessage() : "接口返回异常"));
                         return;
                     }
 
                     try {
-                        java.util.List<ActiveUserBaseDTO> dataList = apiResponse.getData();
+                        java.util.List<ActiveUserBaseVo> dataList = apiResponse.getData();
                         JSONArray dataArray = new JSONArray();
                         if (dataList != null) {
                             com.google.gson.Gson gson = new com.google.gson.Gson();
-                            for (ActiveUserBaseDTO dto : dataList) {
+                            for (ActiveUserBaseVo dto : dataList) {
                                 String json = gson.toJson(dto);
                                 dataArray.put(new JSONObject(json));
                             }
@@ -968,7 +968,7 @@ public class EventSettingsActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveUserBaseDTO>>> call,
+            public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveUserBaseVo>>> call,
                                   @NonNull Throwable t) {
                 runOnUiThread(() -> {
                     handleSyncFailure("数据同步失败：" + t.getMessage());
@@ -1128,14 +1128,14 @@ public class EventSettingsActivity extends AppCompatActivity {
         // 调用接口获取该活动的基础信息（需传设备 id）
         String eqpId = ensureDeviceCode();
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call =
+        retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> call =
                 apiService.getBasicInfo(eventCode, eqpId);
 
-        call.enqueue(new retrofit2.Callback<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>>() {
+        call.enqueue(new retrofit2.Callback<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>>() {
             @Override
             public void onResponse(
-                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
-                    @NonNull retrofit2.Response<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> response) {
+                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> call,
+                    @NonNull retrofit2.Response<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> response) {
                 runOnUiThread(() -> {
                     if (!response.isSuccessful()) {
                         Toast.makeText(EventSettingsActivity.this,
@@ -1144,7 +1144,7 @@ public class EventSettingsActivity extends AppCompatActivity {
                         renderEventInfo();
                         return;
                     }
-                    ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO> apiResponse = response.body();
+                    ApiResponse<com.largeevent.management.network.dto.BasicInfoVo> apiResponse = response.body();
                     if (apiResponse == null || !apiResponse.isSuccess() || apiResponse.getData() == null) {
                         Toast.makeText(EventSettingsActivity.this,
                                 "基础信息获取失败：" + (apiResponse != null
@@ -1174,7 +1174,7 @@ public class EventSettingsActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(
-                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
+                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> call,
                     @NonNull Throwable t) {
                 runOnUiThread(() -> {
                     Toast.makeText(EventSettingsActivity.this,

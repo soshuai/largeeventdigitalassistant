@@ -9,37 +9,37 @@ import java.util.List;
  * 接口：{@code GET androidNew/api/getBasicInfo}，位于 {@link ApiResponse#getData()}。
  * 含活动、场馆、位置、证件字典、matrixAuth、防疫等信息；字段名与接口 JSON 保持 camelCase。
  */
-public class BasicInfoDTO {
+public class BasicInfoVo {
 
     /** 活动列表 */
-    public List<ActiveModelDTO> activeModelList;
+    public List<ActiveModelVo> activeModelList;
     /** 活动场馆列表 */
-    public List<ActiveVenueDTO> activeVenueModelList;
+    public List<ActiveVenueVo> activeVenueModelList;
     /** 岗位/位置模型列表 */
-    public List<PositionDTO> positionModelList;
+    public List<PositionVo> positionModelList;
     /** 通行规则列表 */
-    public List<PassRuleDTO> passRuleModelList;
+    public List<PassRuleVo> passRuleModelList;
     /** 车证类型配置列表 */
-    public List<CartTypeDTO> cartTypeModelList;
+    public List<CartTypeVo> cartTypeModelList;
     /** 人证证件类型字典 */
-    public List<CertTypeDTO> personCertTypeList;
+    public List<CertTypeVo> personCertTypeList;
     /** 车证证件类型字典 */
-    public List<CertTypeDTO> carCertTypeList;
+    public List<CertTypeVo> carCertTypeList;
     /** 设备位置/分区列表（含 moduleType：1 人证 / 2 车证） */
-    public List<LocationInfoDTO> locationInfoList;
+    public List<LocationInfoVo> locationInfoList;
     /** 基础信息中的设备权限矩阵（可能未按模块隔离，核验优先用 getMatrixAuthInfoList 缓存） */
-    public List<MatrixAuthInfoDTO> matrixAuthInfoList;
+    public List<MatrixAuthInfoVo> matrixAuthInfoList;
     /** 防疫信息列表 */
-    public List<EpidemicInfoDTO> epidemicInfoList;
+    public List<EpidemicInfoVo> epidemicInfoList;
     /** 场馆权限字典（设置页「场馆权限」芯片） */
-    public List<DictItemDTO> venueInfoList;
+    public List<DictItemVo> venueInfoList;
     /** 分区权限字典（personCertZoneList，对应 matrixAuth.venuePartition / zonePrivileges） */
-    public List<DictItemDTO> personCertZoneList;
+    public List<DictItemVo> personCertZoneList;
     /** 区域权限字典（personCertAreaList，对应 matrixAuth.venueArea / areaPrivileges） */
-    public List<DictItemDTO> personCertAreaList;
+    public List<DictItemVo> personCertAreaList;
 
     /** 活动项 */
-    public static class ActiveModelDTO {
+    public static class ActiveModelVo {
         /** 活动 ID */
         public String id;
         /** 活动状态 */
@@ -75,9 +75,9 @@ public class BasicInfoDTO {
         /** 签到类型 */
         public String signType;
         /** 活动场次日期列表 */
-        public List<ActiveDateDTO> activeDateModelList;
+        public List<ActiveDateVo> activeDateModelList;
         /** 子活动/单元列表 */
-        public List<ActiveUnitDTO> activeUnitModelList;
+        public List<ActiveUnitVo> activeUnitModelList;
         /** 签到开始时间 */
         public String signStartTime;
         /** 签到结束时间 */
@@ -91,19 +91,19 @@ public class BasicInfoDTO {
     }
 
     /** 活动场次日期 */
-    public static class ActiveDateDTO {
+    public static class ActiveDateVo {
         /** 场次日期，如 yyyy-MM-dd */
         public String date;
     }
 
     /** 子活动单元 */
-    public static class ActiveUnitDTO {
+    public static class ActiveUnitVo {
         /** 子活动/单元名称 */
         public String unitName;
     }
 
     /** 活动场馆 */
-    public static class ActiveVenueDTO {
+    public static class ActiveVenueVo {
         /** 场馆记录 ID */
         public String id;
         /** 场馆类型 */
@@ -121,11 +121,11 @@ public class BasicInfoDTO {
         /** 地址 */
         public String address;
         /** 场馆下区域列表 */
-        public List<ActiveAreaDTO> activeAreaList;
+        public List<ActiveAreaVo> activeAreaList;
     }
 
     /** 场馆区域 */
-    public static class ActiveAreaDTO {
+    public static class ActiveAreaVo {
         /** 区域 ID */
         public String id;
         /** 区域名称（优先） */
@@ -139,7 +139,7 @@ public class BasicInfoDTO {
     }
 
     /** 岗位/位置 */
-    public static class PositionDTO {
+    public static class PositionVo {
         /** 岗位 ID */
         public String id;
         /** 岗位名称 */
@@ -155,7 +155,7 @@ public class BasicInfoDTO {
     }
 
     /** 通行规则 */
-    public static class PassRuleDTO {
+    public static class PassRuleVo {
         /** 规则 ID */
         public String id;
         /** 规则编码 */
@@ -169,7 +169,7 @@ public class BasicInfoDTO {
     }
 
     /** 车证类型配置 */
-    public static class CartTypeDTO {
+    public static class CartTypeVo {
         /** 配置 ID */
         public String id;
         /** 岗位编码 */
@@ -179,7 +179,7 @@ public class BasicInfoDTO {
     }
 
     /** 证件类型字典项 */
-    public static class CertTypeDTO {
+    public static class CertTypeVo {
         /** 排序号 */
         public String sortNumber;
         /** 字典类型 */
@@ -193,7 +193,7 @@ public class BasicInfoDTO {
     }
 
     /** 设备位置/分区（locationType：cg=位置，fq=分区） */
-    public static class LocationInfoDTO {
+    public static class LocationInfoVo {
         /** 位置/分区 ID */
         public String locationId;
         /** 父级 ID */
@@ -217,7 +217,7 @@ public class BasicInfoDTO {
     }
 
     /** 防疫信息 */
-    public static class EpidemicInfoDTO {
+    public static class EpidemicInfoVo {
         /** 防疫记录 ID */
         public String epidemicId;
         /** 登记号（可与证件号关联） */
@@ -246,7 +246,7 @@ public class BasicInfoDTO {
      * 字典项（场馆权限 / 区域权限 / 分区权限等）。
      * 用于 venueInfoList、personCertZoneList、personCertAreaList。
      */
-    public static class DictItemDTO {
+    public static class DictItemVo {
         /** 字典项 ID */
         public String id;
         /** 创建人 */

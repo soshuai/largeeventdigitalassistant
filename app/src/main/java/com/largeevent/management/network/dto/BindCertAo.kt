@@ -4,7 +4,7 @@ package com.largeevent.management.network.dto
  * 绑定人证数据请求DTO
  * 接口: POST /android/api/bandCert
  */
-class BindCertDTO { // Getters and Setters
+class BindCertAo { // Getters and Setters
     /** 活动编码  */
     @JvmField
     var activeCode: String? = null

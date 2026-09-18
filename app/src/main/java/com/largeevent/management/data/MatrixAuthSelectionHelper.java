@@ -4,7 +4,7 @@ import android.text.TextUtils;
 import android.widget.TextView;
 
 import com.largeevent.management.R;
-import com.largeevent.management.network.dto.MatrixAuthInfoDTO;
+import com.largeevent.management.network.dto.MatrixAuthInfoVo;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -26,12 +26,12 @@ public final class MatrixAuthSelectionHelper {
      * 从 matrixAuth 列表收集场馆 code → 展示名（接口数据，不依赖 basicInfo 字典）。
      */
     public static LinkedHashMap<String, String> collectVenueLabels(
-            List<MatrixAuthInfoDTO> authList) {
+            List<MatrixAuthInfoVo> authList) {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
         if (authList == null) {
             return map;
         }
-        for (MatrixAuthInfoDTO auth : authList) {
+        for (MatrixAuthInfoVo auth : authList) {
             if (auth != null) {
                 putLabeledTokens(map, auth.venue, auth.venueVal);
             }
@@ -41,12 +41,12 @@ public final class MatrixAuthSelectionHelper {
 
     /** 分区：code 用 venuePartition，展示名只用 venuePartitionVal */
     public static LinkedHashMap<String, String> collectPartitionLabels(
-            List<MatrixAuthInfoDTO> authList) {
+            List<MatrixAuthInfoVo> authList) {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
         if (authList == null) {
             return map;
         }
-        for (MatrixAuthInfoDTO auth : authList) {
+        for (MatrixAuthInfoVo auth : authList) {
             if (auth != null) {
                 putLabeledTokens(map, auth.venuePartition, auth.venuePartitionVal);
             }
@@ -56,12 +56,12 @@ public final class MatrixAuthSelectionHelper {
 
     /** 区域：venueArea / venueAreaVal */
     public static LinkedHashMap<String, String> collectAreaLabels(
-            List<MatrixAuthInfoDTO> authList) {
+            List<MatrixAuthInfoVo> authList) {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
         if (authList == null) {
             return map;
         }
-        for (MatrixAuthInfoDTO auth : authList) {
+        for (MatrixAuthInfoVo auth : authList) {
             if (auth != null) {
                 putLabeledTokens(map, auth.venueArea, auth.venueAreaVal);
             }
@@ -71,12 +71,12 @@ public final class MatrixAuthSelectionHelper {
 
     /** 停车通行码：code=park，展示名只用 parkVal */
     public static LinkedHashMap<String, String> collectParkLabels(
-            List<MatrixAuthInfoDTO> authList) {
+            List<MatrixAuthInfoVo> authList) {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
         if (authList == null) {
             return map;
         }
-        for (MatrixAuthInfoDTO auth : authList) {
+        for (MatrixAuthInfoVo auth : authList) {
             if (auth != null) {
                 putLabeledTokens(map, auth.park, auth.parkVal);
             }
@@ -134,7 +134,7 @@ public final class MatrixAuthSelectionHelper {
     }
 
     public static void applyMatrixAuthToCheckboxes(
-            List<MatrixAuthInfoDTO> authList,
+            List<MatrixAuthInfoVo> authList,
             List<TextView> venueChips,
             List<TextView> partitionChips,
             List<TextView> areaChips) {
@@ -181,7 +181,7 @@ public final class MatrixAuthSelectionHelper {
      */
     private static void applyVenueWithFallback(
             List<TextView> venueChips,
-            List<MatrixAuthInfoDTO> authList,
+            List<MatrixAuthInfoVo> authList,
             Set<String> venueCodes) {
         if (venueChips == null || venueCodes == null || venueCodes.isEmpty()) {
             return;
@@ -189,7 +189,7 @@ public final class MatrixAuthSelectionHelper {
 
         Map<String, String> codeToLabel = new HashMap<>();
         if (authList != null) {
-            for (MatrixAuthInfoDTO auth : authList) {
+            for (MatrixAuthInfoVo auth : authList) {
                 if (auth != null && !TextUtils.isEmpty(auth.venue)) {
                     for (String code : DevicePermissionHelper.splitPrivilegeTokens(auth.venue)) {
                         String label = !TextUtils.isEmpty(auth.venueVal) ? auth.venueVal.trim() : code;
@@ -293,12 +293,12 @@ public final class MatrixAuthSelectionHelper {
 
     /** 收集设备权限里存在、但 venueInfoList 字典中不存在的场馆 code → 展示名 */
     public static Map<String, String> collectVenueCodesNotInDict(
-            List<MatrixAuthInfoDTO> authList, Set<String> dictVenueCodes) {
+            List<MatrixAuthInfoVo> authList, Set<String> dictVenueCodes) {
         Map<String, String> missing = new HashMap<>();
         if (authList == null) {
             return missing;
         }
-        for (MatrixAuthInfoDTO auth : authList) {
+        for (MatrixAuthInfoVo auth : authList) {
             if (auth == null || TextUtils.isEmpty(auth.venue)) {
                 continue;
             }

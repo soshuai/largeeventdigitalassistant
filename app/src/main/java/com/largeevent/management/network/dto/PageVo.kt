@@ -6,9 +6,9 @@ package com.largeevent.management.network.dto
  * 用于 `selectPersonCheckRecord` / `selectCarCertCheckRecord` 等分页接口，
  * 位于 [ApiResponse.data]；列表在 [records]。
  *
- * @param T 单条记录类型，如 [PersonCardCheckModel]、[CarCertificateCheckModel]
+ * @param T 单条记录类型，如 [PersonCardCheckVo]、[CarCertificateCheckVo]
  */
-class PageResult<T> {
+class PageVo<T> {
     /** 数据列表 */
     @JvmField
     var records: List<T>? = null

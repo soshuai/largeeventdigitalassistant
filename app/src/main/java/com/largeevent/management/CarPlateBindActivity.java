@@ -20,8 +20,8 @@ import com.largeevent.management.model.VerificationResult;
 import com.largeevent.management.model.VerificationResultType;
 import com.largeevent.management.network.ApiService;
 import com.largeevent.management.network.NetworkManager;
-import com.largeevent.management.network.dto.CarCertificateDTO;
-import com.largeevent.management.network.dto.UpdateCardInfoDTO;
+import com.largeevent.management.network.dto.CarCertificateVo;
+import com.largeevent.management.network.dto.UpdateCardInfoAo;
 
 import com.largeevent.management.network.dto.ApiResponse;
 
@@ -37,7 +37,7 @@ public class CarPlateBindActivity extends AppCompatActivity {
 
     private CertificateInfo certificateInfo;
     private String chipId;
-    private CarCertificateDTO carDTO;
+    private CarCertificateVo carDTO;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -45,7 +45,7 @@ public class CarPlateBindActivity extends AppCompatActivity {
         setContentView(R.layout.activity_car_plate_bind);
         certificateInfo = (CertificateInfo) getIntent().getSerializableExtra(EXTRA_CERT_INFO);
         chipId = getIntent().getStringExtra(EXTRA_CHIP_ID);
-        carDTO = (CarCertificateDTO) getIntent().getSerializableExtra(EXTRA_CAR_DTO);
+        carDTO = (CarCertificateVo) getIntent().getSerializableExtra(EXTRA_CAR_DTO);
         initToolbar();
         initViews();
     }
@@ -114,7 +114,7 @@ public class CarPlateBindActivity extends AppCompatActivity {
         repository.close();
 
         // 构建更新请求
-        UpdateCardInfoDTO updateCardInfoDTO = new UpdateCardInfoDTO();
+        UpdateCardInfoAo updateCardInfoDTO = new UpdateCardInfoAo();
         updateCardInfoDTO.accId = carDTO.id;
         updateCardInfoDTO.chipId = carDTO.tagNo1;
         updateCardInfoDTO.eventCode = !TextUtils.isEmpty(eventCode) ? eventCode : carDTO.number;

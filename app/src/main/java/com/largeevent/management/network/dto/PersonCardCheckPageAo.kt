@@ -1,10 +1,9 @@
 package com.largeevent.management.network.dto
 
 /**
- * POST androidNew/api/selectCarCertCheckRecord 请求体。
- * 字段名、类型与 [PersonCardCheckPageDTO] 一致。
+ * POST /selectPersonCheckRecord 请求体（字段名、类型与后端一致）
  */
-class CarCertificateCheckPageDTO {
+class PersonCardCheckPageAo {
     @JvmField
     var current: Int = 1
 

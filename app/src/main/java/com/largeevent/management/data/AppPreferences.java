@@ -24,13 +24,21 @@ public class AppPreferences {
     private static final String KEY_SELECTED_CERT_ZONE_PERMISSIONS = "key_selected_cert_zone_permissions";
     private static final String KEY_DEVICE_MATRIX_VENUE = "key_device_matrix_venue";
     private static final String KEY_DEVICE_MATRIX_SPORT = "key_device_matrix_sport";
-    /** 区域权限（venueArea / areaPrivileges）；新 key，避免与旧错误语义混用 */
+    /**
+     * 区域权限（venueArea / areaPrivileges）；新 key，避免与旧错误语义混用
+     */
     private static final String KEY_DEVICE_MATRIX_AREA = "key_device_matrix_area";
-    /** 分区权限（venuePartition / zonePrivileges） */
+    /**
+     * 分区权限（venuePartition / zonePrivileges）
+     */
     private static final String KEY_DEVICE_MATRIX_PARTITION = "key_device_matrix_partition";
-    /** 停车通行码（park / parkingCode） */
+    /**
+     * 停车通行码（park / parkingCode）
+     */
     private static final String KEY_DEVICE_MATRIX_PARK = "key_device_matrix_park";
-    /** 最近一次 getMatrixAuthInfoList / getCarMatrixAuthList 原始 JSON（展示用） */
+    /**
+     * 最近一次 getMatrixAuthInfoList / getCarMatrixAuthList 原始 JSON（展示用）
+     */
     private static final String KEY_DEVICE_MATRIX_JSON = "key_device_matrix_json";
     private static final String KEY_ACTIVATION_CHECK = "key_activation_check_enabled";
     private static final String KEY_EQP_TYPE = "key_eqp_type";
@@ -38,7 +46,9 @@ public class AppPreferences {
     private static final String KEY_DEVICE_PERM_CONFIGURED = "key_device_perm_configured";
     private static final String KEY_SELECTED_LOCATION_ID = "key_selected_location_id";
     private static final String KEY_SELECTED_ZONE_ID = "key_selected_zone_id";
-    /** 已保存设置并完成设备注册+权限拉取的活动与位置/分区（value: locationId|zoneId） */
+    /**
+     * 已保存设置并完成设备注册+权限拉取的活动与位置/分区（value: locationId|zoneId）
+     */
     private static final String KEY_DEVICE_AUTH_SYNCED = "key_device_auth_synced_";
     private static final String KEY_LAST_PERSON_COUNT = "key_last_person_count";
     private static final String KEY_LAST_VEHICLE_COUNT = "key_last_vehicle_count";
@@ -46,8 +56,12 @@ public class AppPreferences {
     private static final String KEY_LAST_ACTIVE_ID = "key_last_active_id";
     private static final String KEY_DEVICE_CODE = "key_device_code";
     private static final String KEY_DEVICE_LOCATION = "key_device_location";
-    /** 活动设置页当前选择的业务模块：1 人证 / 2 车证 */
+    /**
+     * 活动设置页当前选择的业务模块：1 人证 / 2 车证
+     */
     private static final String KEY_MODULE_TYPE = "key_module_type";
+
+    private static final boolean test = false;
 
     private static String scopedKey(String prefix, String activeId, int moduleType) {
         return prefix + "_" + activeId + "_m" + ModuleType.normalize(moduleType);
@@ -252,7 +266,9 @@ public class AppPreferences {
                 .apply();
     }
 
-    /** 缓存 matrixAuth 列表 JSON，供设置页按接口数据展示权限芯片 */
+    /**
+     * 缓存 matrixAuth 列表 JSON，供设置页按接口数据展示权限芯片
+     */
     public static void setDeviceMatrixAuthJson(
             Context context, String activeId, int moduleType, @Nullable String json) {
         if (TextUtils.isEmpty(activeId)) {
@@ -273,7 +289,9 @@ public class AppPreferences {
         return getPrefs(context).getString(scopedKey(KEY_DEVICE_MATRIX_JSON, activeId, module), null);
     }
 
-    /** 清空指定模块的设备权限缓存（注册失败时使用） */
+    /**
+     * 清空指定模块的设备权限缓存（注册失败时使用）
+     */
     public static void clearDeviceMatrixAuth(Context context, String activeId, int moduleType) {
         if (TextUtils.isEmpty(activeId)) {
             return;
@@ -291,7 +309,9 @@ public class AppPreferences {
                 .apply();
     }
 
-    /** @deprecated 使用带 moduleType 的重载 */
+    /**
+     * @deprecated 使用带 moduleType 的重载
+     */
     public static void setDeviceMatrixAuthCodes(
             Context context,
             String activeId,
@@ -512,8 +532,10 @@ public class AppPreferences {
      * 确保已有设备编码；为空时生成并持久化
      */
     public static String ensureDeviceCode(Context context) {
-//        String code = "DEV_1789549201727_2";
         String code = getDeviceCode(context);
+        if (test) {
+            code = "DEV_1788616993593";
+        }
         if (TextUtils.isEmpty(code)) {
             code = "DEV_" + System.currentTimeMillis();
             setDeviceCode(context, code);
@@ -652,7 +674,9 @@ public class AppPreferences {
         setDeviceAuthSynced(context, activeId, ModuleType.PERSON, locationId, zoneId);
     }
 
-    /** 切换活动时清除该活动下的同步标记，以便重新选择位置/分区后拉取权限 */
+    /**
+     * 切换活动时清除该活动下的同步标记，以便重新选择位置/分区后拉取权限
+     */
     public static void clearDeviceAuthSynced(Context context, String activeId) {
         if (TextUtils.isEmpty(activeId)) {
             return;

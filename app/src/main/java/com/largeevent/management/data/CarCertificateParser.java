@@ -3,7 +3,7 @@ package com.largeevent.management.data;
 import android.text.TextUtils;
 
 import com.largeevent.management.model.CertificateInfo;
-import com.largeevent.management.network.dto.CarCertificateDTO;
+import com.largeevent.management.network.dto.CarCertificateVo;
 
 import org.json.JSONObject;
 
@@ -15,14 +15,14 @@ import androidx.annotation.Nullable;
 public class CarCertificateParser {
 
     /**
-     * 解析单个车证数据为 CarCertificateDTO
+     * 解析单个车证数据为 CarCertificateVo
      */
-    public static CarCertificateDTO parseCarCertificate(JSONObject json) {
+    public static CarCertificateVo parseCarCertificate(JSONObject json) {
         if (json == null) {
             return null;
         }
         
-        CarCertificateDTO dto = new CarCertificateDTO();
+        CarCertificateVo dto = new CarCertificateVo();
         dto.id = json.optString("id");
         dto.createBy = json.optString("createBy");
         dto.createTime = json.optString("createTime");
@@ -53,7 +53,7 @@ public class CarCertificateParser {
     }
 
     @Nullable
-    public static String resolveOffice(@Nullable CarCertificateDTO dto) {
+    public static String resolveOffice(@Nullable CarCertificateVo dto) {
         if (dto == null) {
             return null;
         }
@@ -61,7 +61,7 @@ public class CarCertificateParser {
     }
 
     @Nullable
-    public static String resolvePlate(@Nullable CarCertificateDTO dto) {
+    public static String resolvePlate(@Nullable CarCertificateVo dto) {
         if (dto == null) {
             return null;
         }
@@ -69,7 +69,7 @@ public class CarCertificateParser {
     }
 
     @Nullable
-    public static String resolveCardId(@Nullable CarCertificateDTO dto) {
+    public static String resolveCardId(@Nullable CarCertificateVo dto) {
         if (dto == null) {
             return null;
         }
@@ -90,9 +90,9 @@ public class CarCertificateParser {
     }
 
     /**
-     * 从 CarCertificateDTO 构建 CertificateInfo
+     * 从 CarCertificateVo 构建 CertificateInfo
      */
-    public static CertificateInfo buildCertificateInfo(CarCertificateDTO dto, String fallbackChipId) {
+    public static CertificateInfo buildCertificateInfo(CarCertificateVo dto, String fallbackChipId) {
         if (dto == null) {
             return null;
         }

@@ -3,7 +3,7 @@ package com.largeevent.management.network.dto
 /**
  * 证件照片替换请求 DTO
  */
-class ReplacePhotoDTO {
+class ReplacePhotoAo {
     /** 证件 ID  */
     @JvmField
     var accId: String? = null

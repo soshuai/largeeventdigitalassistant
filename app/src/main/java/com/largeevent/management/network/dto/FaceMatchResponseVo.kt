@@ -10,7 +10,7 @@ import com.google.gson.annotations.SerializedName
  * 1. 服务端包装：`{ "code": 200, "msg": "...", "data": { "result": { "score": ... } } }`
  * 2. 百度原始：`{ "error_code": 0, "error_msg": "SUCCESS", "result": { "score": ... } }`
  */
-class FaceMatchResponseDTO {
+class FaceMatchResponseVo {
     /** 服务端通用 code（200 表示成功） */
     @JvmField
     var code: Int? = null

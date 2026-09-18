@@ -36,12 +36,12 @@ import com.largeevent.management.model.VerificationResult;
 import com.largeevent.management.model.VerificationResultType;
 import com.largeevent.management.network.ApiService;
 import com.largeevent.management.network.NetworkManager;
-import com.largeevent.management.network.dto.ActiveUserBaseDTO;
+import com.largeevent.management.network.dto.ActiveUserBaseVo;
 import com.largeevent.management.network.dto.ApiResponse;
-import com.largeevent.management.network.dto.FaceMatchParamDTO;
-import com.largeevent.management.network.dto.FaceMatchResponseDTO;
+import com.largeevent.management.network.dto.FaceMatchParamAo;
+import com.largeevent.management.network.dto.FaceMatchResponseVo;
 import com.largeevent.management.data.ReceiveCheckPersonBuilder;
-import com.largeevent.management.network.dto.ReceiveCheckPersonDTO;
+import com.largeevent.management.network.dto.ReceiveCheckPersonAo;
 import com.largeevent.management.nfc.NfcCallback;
 import com.largeevent.management.widget.CommonConfig;
 
@@ -82,7 +82,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     private String currentChipId;
     private String latestPhotoPath;
     private boolean verifying;
-    private ActiveUserBaseDTO currentUserDTO;  // 保存当前核验的用户数据
+    private ActiveUserBaseVo currentUserDTO;  // 保存当前核验的用户数据
     private ExecutorService faceMatchExecutor;
 
     private final boolean test = false;
@@ -283,11 +283,11 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
 
         // 使用 ApiService 调用接口，传入 activeId 和 chipId
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<ApiResponse<List<ActiveUserBaseDTO>>> call = apiService.getActiveUser(resolvedActiveId, chipId);
+        Call<ApiResponse<List<ActiveUserBaseVo>>> call = apiService.getActiveUser(resolvedActiveId, chipId);
 
-        call.enqueue(new Callback<ApiResponse<List<ActiveUserBaseDTO>>>() {
+        call.enqueue(new Callback<ApiResponse<List<ActiveUserBaseVo>>>() {
             @Override
-            public void onResponse(@NonNull Call<ApiResponse<List<ActiveUserBaseDTO>>> call, @NonNull Response<ApiResponse<List<ActiveUserBaseDTO>>> response) {
+            public void onResponse(@NonNull Call<ApiResponse<List<ActiveUserBaseVo>>> call, @NonNull Response<ApiResponse<List<ActiveUserBaseVo>>> response) {
                 if (!isAdded())
                     return;
                 requireActivity().runOnUiThread(() -> {
@@ -297,14 +297,14 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
                         return;
                     }
 
-                    ApiResponse<List<ActiveUserBaseDTO>> apiResponse = response.body();
+                    ApiResponse<List<ActiveUserBaseVo>> apiResponse = response.body();
                     if (!apiResponse.isSuccess()) {
                         setVerifying(false);
                         openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "查询失败", apiResponse.getMessage(), null), "查询失败");
                         return;
                     }
 
-                    List<ActiveUserBaseDTO> userList = apiResponse.getData();
+                    List<ActiveUserBaseVo> userList = apiResponse.getData();
                     if (userList == null || userList.isEmpty()) {
                         setVerifying(false);
                         openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "无效证件", "系统中未找到该证件信息", null), "无效证件");
@@ -312,7 +312,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
                     }
 
                     String subUnit = AppPreferences.getSelectedSubUnitName(requireContext(), resolvedActiveId);
-                    ActiveUserBaseDTO userDTO = ActiveUserResolver.resolve(userList, chipId, subUnit);
+                    ActiveUserBaseVo userDTO = ActiveUserResolver.resolve(userList, chipId, subUnit);
                     if (userDTO == null) {
                         setVerifying(false);
                         openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "无效证件", "系统中未找到该证件信息", null), "无效证件");
@@ -331,7 +331,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             }
 
             @Override
-            public void onFailure(@NonNull Call<ApiResponse<List<ActiveUserBaseDTO>>> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<ApiResponse<List<ActiveUserBaseVo>>> call, @NonNull Throwable t) {
                 if (!isAdded())
                     return;
                 requireActivity().runOnUiThread(() -> {
@@ -345,7 +345,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     /**
      * 继续后续验证流程（新版通用验证规则 + 证件类型 + 人证合一）。
      */
-    private void continueVerification(CertificateInfo info, ActiveUserBaseDTO userDTO) {
+    private void continueVerification(CertificateInfo info, ActiveUserBaseVo userDTO) {
         if (info == null || userDTO == null) {
             setVerifying(false);
             openResult(new VerificationResult(VerificationResultType.NOT_DETECTED, "未识读出证件", "证件信息解析失败", null), "未识读出证件");
@@ -377,7 +377,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     /**
      * MP 人证合一：通道/闸机强制；手持有拍照则比对。
      */
-    private void evaluateWithFaceVerification(CertificateInfo info, ActiveUserBaseDTO userDTO) {
+    private void evaluateWithFaceVerification(CertificateInfo info, ActiveUserBaseVo userDTO) {
         String activeId = AppPreferences.getLastActiveId(requireContext());
         boolean hasPhoto = !TextUtils.isEmpty(latestPhotoPath);
 
@@ -451,12 +451,12 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
     /**
      * 执行人脸比对（两张图均以 BASE64 传入）
      */
-    private void performFaceMatch(String livePhotoBase64, String certPhotoBase64, CertificateInfo info, ActiveUserBaseDTO userDTO) {
+    private void performFaceMatch(String livePhotoBase64, String certPhotoBase64, CertificateInfo info, ActiveUserBaseVo userDTO) {
         saveFaceMatchBase64ToFile(livePhotoBase64);
 
-        List<FaceMatchParamDTO> faceMatchParams = new ArrayList<>();
-        faceMatchParams.add(new FaceMatchParamDTO(livePhotoBase64, "BASE64", "LIVE"));
-        faceMatchParams.add(new FaceMatchParamDTO(certPhotoBase64, "BASE64", "LIVE"));
+        List<FaceMatchParamAo> faceMatchParams = new ArrayList<>();
+        faceMatchParams.add(new FaceMatchParamAo(livePhotoBase64, "BASE64", "LIVE"));
+        faceMatchParams.add(new FaceMatchParamAo(certPhotoBase64, "BASE64", "LIVE"));
         requestFaceMatch(faceMatchParams, info, userDTO);
     }
 
@@ -467,34 +467,34 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             String livePhotoBase64,
             String certPhotoUrl,
             CertificateInfo info,
-            ActiveUserBaseDTO userDTO) {
+            ActiveUserBaseVo userDTO) {
         saveFaceMatchBase64ToFile(livePhotoBase64);
 
-        List<FaceMatchParamDTO> faceMatchParams = new ArrayList<>();
-        faceMatchParams.add(new FaceMatchParamDTO(livePhotoBase64, "BASE64", "LIVE"));
-        faceMatchParams.add(new FaceMatchParamDTO(certPhotoUrl, "URL", "LIVE"));
+        List<FaceMatchParamAo> faceMatchParams = new ArrayList<>();
+        faceMatchParams.add(new FaceMatchParamAo(livePhotoBase64, "BASE64", "LIVE"));
+        faceMatchParams.add(new FaceMatchParamAo(certPhotoUrl, "URL", "LIVE"));
         requestFaceMatch(faceMatchParams, info, userDTO);
     }
 
     private void requestFaceMatch(
-            List<FaceMatchParamDTO> faceMatchParams,
+            List<FaceMatchParamAo> faceMatchParams,
             CertificateInfo info,
-            ActiveUserBaseDTO userDTO) {
+            ActiveUserBaseVo userDTO) {
 
         // 调用人脸比对接口
         ApiService apiService = NetworkManager.getInstance().getApiService();
-        Call<FaceMatchResponseDTO> call = apiService.faceMatch(faceMatchParams);
+        Call<FaceMatchResponseVo> call = apiService.faceMatch(faceMatchParams);
 
-        call.enqueue(new Callback<FaceMatchResponseDTO>() {
+        call.enqueue(new Callback<FaceMatchResponseVo>() {
             @Override
-            public void onResponse(@NonNull Call<FaceMatchResponseDTO> call, @NonNull Response<FaceMatchResponseDTO> response) {
+            public void onResponse(@NonNull Call<FaceMatchResponseVo> call, @NonNull Response<FaceMatchResponseVo> response) {
                 if (!isAdded())
                     return;
                 requireActivity().runOnUiThread(() -> handleFaceMatchResponse(response, info));
             }
 
             @Override
-            public void onFailure(@NonNull Call<FaceMatchResponseDTO> call, @NonNull Throwable t) {
+            public void onFailure(@NonNull Call<FaceMatchResponseVo> call, @NonNull Throwable t) {
                 if (!isAdded())
                     return;
                 requireActivity().runOnUiThread(() -> {
@@ -506,14 +506,14 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
         });
     }
 
-    private void handleFaceMatchResponse(@NonNull Response<FaceMatchResponseDTO> response, CertificateInfo info) {
+    private void handleFaceMatchResponse(@NonNull Response<FaceMatchResponseVo> response, CertificateInfo info) {
         if (!response.isSuccessful() || response.body() == null) {
             setVerifying(false);
             openResult(new VerificationResult(VerificationResultType.INVALID_CERT, "人脸比对失败", "服务器错误，状态码：" + response.code(), info), "人脸比对失败");
             return;
         }
 
-        FaceMatchResponseDTO faceMatchResponse = response.body();
+        FaceMatchResponseVo faceMatchResponse = response.body();
 
         if (!faceMatchResponse.isSuccess()) {
             setVerifying(false);
@@ -576,7 +576,7 @@ public class PersonVerifyFragment extends Fragment implements NfcCallback {
             }
 
             BasicInfo basicInfo = initializationRepository.getBasicInfo();
-            ReceiveCheckPersonDTO body = ReceiveCheckPersonBuilder.build(
+            ReceiveCheckPersonAo body = ReceiveCheckPersonBuilder.build(
                     requireContext(),
                     result,
                     currentUserDTO,

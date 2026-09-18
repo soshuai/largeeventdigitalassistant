@@ -9,11 +9,11 @@ import com.google.gson.annotations.SerializedName;
  * <ul>
  *   <li>{@code GET androidNew/api/getMatrixAuthInfoList} — 人证 {@link ApiResponse#getData()} 列表元素</li>
  *   <li>{@code GET androidNew/api/getCarMatrixAuthList} — 车证，入参返参与人证接口一致</li>
- *   <li>{@code GET androidNew/api/getBasicInfo} — {@link BasicInfoDTO#matrixAuthInfoList} 元素</li>
+ *   <li>{@code GET androidNew/api/getBasicInfo} — {@link BasicInfoVo#matrixAuthInfoList} 元素</li>
  * </ul>
  * 含场馆 / 分项 / 分区 / 区域等权限 code 与展示名。
  */
-public class MatrixAuthInfoDTO {
+public class MatrixAuthInfoVo {
     /** 权限记录 ID */
     @SerializedName(value = "authId", alternate = {"AuthId", "authID"})
     public String authId;

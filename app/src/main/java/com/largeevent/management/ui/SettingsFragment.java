@@ -27,7 +27,7 @@ import com.largeevent.management.data.ActiveUserParser;
 import com.largeevent.management.data.AppPreferences;
 import com.largeevent.management.data.InitializationRepository;
 import com.largeevent.management.data.ModuleType;
-import com.largeevent.management.network.dto.ActiveInfoDTO;
+import com.largeevent.management.network.dto.ActiveInfoVo;
 import com.largeevent.management.model.BasicInfo;
 import com.largeevent.management.model.EventInfo;
 import com.largeevent.management.network.CustomHttpLogger;
@@ -383,12 +383,12 @@ public class SettingsFragment extends Fragment {
     private void fetchBasicInfo(String baseUrl) {
         // 第一步：先获取活动列表
         com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
-        retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call = apiService.getActiveInfo();
+        retrofit2.Call<ApiResponse<java.util.List<ActiveInfoVo>>> call = apiService.getActiveInfo();
         
-        call.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<ActiveInfoDTO>>>() {
+        call.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<ActiveInfoVo>>>() {
             @Override
-            public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call, 
-                                   @NonNull retrofit2.Response<ApiResponse<java.util.List<ActiveInfoDTO>>> response) {
+            public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoVo>>> call, 
+                                   @NonNull retrofit2.Response<ApiResponse<java.util.List<ActiveInfoVo>>> response) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     if (!response.isSuccessful()) {
@@ -396,14 +396,14 @@ public class SettingsFragment extends Fragment {
                         return;
                     }
                     
-                    ApiResponse<java.util.List<ActiveInfoDTO>> apiResponse = response.body();
+                    ApiResponse<java.util.List<ActiveInfoVo>> apiResponse = response.body();
                     if (apiResponse == null || apiResponse.getCode() != 200) {
                         Toast.makeText(requireContext(), "活动列表获取失败：" + 
                                 (apiResponse != null ? apiResponse.getMessage() : "接口返回异常"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     
-                    java.util.List<ActiveInfoDTO> activeList = apiResponse.getData();
+                    java.util.List<ActiveInfoVo> activeList = apiResponse.getData();
                     if (activeList == null || activeList.isEmpty()) {
                         Toast.makeText(requireContext(), "活动列表为空", Toast.LENGTH_SHORT).show();
                         return;
@@ -434,7 +434,7 @@ public class SettingsFragment extends Fragment {
             }
 
             @Override
-            public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call, 
+            public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoVo>>> call, 
                                   @NonNull Throwable t) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() ->
@@ -447,28 +447,28 @@ public class SettingsFragment extends Fragment {
     private void fetchBasicInfoWithEventCode(String baseUrl, String eventCode) {
         com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
         String eqpId = AppPreferences.ensureDeviceCode(requireContext());
-        retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call =
+        retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> call =
                 apiService.getBasicInfo(eventCode, eqpId);
 
-        call.enqueue(new retrofit2.Callback<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>>() {
+        call.enqueue(new retrofit2.Callback<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>>() {
             @Override
             public void onResponse(
-                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
-                    @NonNull retrofit2.Response<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> response) {
+                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> call,
+                    @NonNull retrofit2.Response<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> response) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     if (!response.isSuccessful()) {
                         Toast.makeText(requireContext(), "基础信息获取失败：服务器错误", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO> apiResponse = response.body();
+                    ApiResponse<com.largeevent.management.network.dto.BasicInfoVo> apiResponse = response.body();
                     if (apiResponse == null || !apiResponse.isSuccess()) {
                         Toast.makeText(requireContext(), "基础信息获取失败："
                                         + (apiResponse != null ? apiResponse.getMessage() : "接口返回异常"),
                                 Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    com.largeevent.management.network.dto.BasicInfoDTO data = apiResponse.getData();
+                    com.largeevent.management.network.dto.BasicInfoVo data = apiResponse.getData();
                     if (data == null) {
                         Toast.makeText(requireContext(), "基础信息数据为空", Toast.LENGTH_SHORT).show();
                         return;
@@ -487,7 +487,7 @@ public class SettingsFragment extends Fragment {
 
             @Override
             public void onFailure(
-                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoDTO>> call,
+                    @NonNull retrofit2.Call<ApiResponse<com.largeevent.management.network.dto.BasicInfoVo>> call,
                     @NonNull Throwable t) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() ->
@@ -544,12 +544,12 @@ public class SettingsFragment extends Fragment {
         btnRefreshActivities.setEnabled(false);
         
         com.largeevent.management.network.ApiService apiService = NetworkManager.getInstance().getApiService();
-        retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call = apiService.getActiveInfo();
+        retrofit2.Call<ApiResponse<java.util.List<ActiveInfoVo>>> call = apiService.getActiveInfo();
         
-        call.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<ActiveInfoDTO>>>() {
+        call.enqueue(new retrofit2.Callback<ApiResponse<java.util.List<ActiveInfoVo>>>() {
             @Override
-            public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call,
-                                   @NonNull retrofit2.Response<ApiResponse<java.util.List<ActiveInfoDTO>>> response) {
+            public void onResponse(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoVo>>> call,
+                                   @NonNull retrofit2.Response<ApiResponse<java.util.List<ActiveInfoVo>>> response) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
                     btnRefreshActivities.setEnabled(true);
@@ -559,14 +559,14 @@ public class SettingsFragment extends Fragment {
                         return;
                     }
                     
-                    ApiResponse<java.util.List<ActiveInfoDTO>> apiResponse = response.body();
+                    ApiResponse<java.util.List<ActiveInfoVo>> apiResponse = response.body();
                     if (apiResponse == null || apiResponse.getCode() != 200) {
                         Toast.makeText(requireContext(), "活动列表刷新失败：" + 
                                 (apiResponse != null ? apiResponse.getMessage() : "接口返回异常"), Toast.LENGTH_SHORT).show();
                         return;
                     }
                     
-                    java.util.List<ActiveInfoDTO> activeList = apiResponse.getData();
+                    java.util.List<ActiveInfoVo> activeList = apiResponse.getData();
                     if (activeList == null || activeList.isEmpty()) {
                         Toast.makeText(requireContext(), "活动列表为空", Toast.LENGTH_SHORT).show();
                         return;
@@ -585,7 +585,7 @@ public class SettingsFragment extends Fragment {
             }
 
             @Override
-            public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoDTO>>> call,
+            public void onFailure(@NonNull retrofit2.Call<ApiResponse<java.util.List<ActiveInfoVo>>> call,
                                   @NonNull Throwable t) {
                 if (!isAdded()) return;
                 requireActivity().runOnUiThread(() -> {
