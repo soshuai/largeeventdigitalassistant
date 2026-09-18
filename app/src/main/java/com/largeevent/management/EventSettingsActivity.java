@@ -65,6 +65,7 @@ public class EventSettingsActivity extends AppCompatActivity {
 
     private InitializationRepository repository;
     private TextView tvEventName;
+    private TextView tvDeviceId;
     private FlowLayout containerSessions;
     private FlowLayout containerVenuePermissions;
     private FlowLayout containerPartitionPermissions;
@@ -125,6 +126,8 @@ public class EventSettingsActivity extends AppCompatActivity {
         toolbar.setNavigationOnClickListener(v -> onBackPressed());
 
         tvEventName = findViewById(R.id.tv_event_name);
+        tvDeviceId = findViewById(R.id.tv_device_id);
+        bindDeviceId();
         containerSessions = findViewById(R.id.container_sessions);
         containerVenuePermissions = findViewById(R.id.container_venue_permissions);
         containerPartitionPermissions = findViewById(R.id.container_partition_permissions);
@@ -780,6 +783,15 @@ public class EventSettingsActivity extends AppCompatActivity {
 
     private String ensureDeviceCode() {
         return AppPreferences.ensureDeviceCode(this);
+    }
+
+    /** 展示本机业务设备 ID（注册 / 拉权限 / 核验上报共用） */
+    private void bindDeviceId() {
+        if (tvDeviceId == null) {
+            return;
+        }
+        String eqpId = ensureDeviceCode();
+        tvDeviceId.setText(TextUtils.isEmpty(eqpId) ? "--" : eqpId);
     }
 
     private String getDeviceIpAddress() {
