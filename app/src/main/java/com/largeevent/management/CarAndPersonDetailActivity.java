@@ -2,12 +2,17 @@ package com.largeevent.management;
 
 import static android.view.View.VISIBLE;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
@@ -61,9 +66,13 @@ import retrofit2.Response;
 public class CarAndPersonDetailActivity extends AppCompatActivity {
 
     public static final String EXTRA_RESULT = "extra_result";
+    public static final String EXTRA_RETRY = "retry";
     private static final String TAG = "VerificationDetail";
     private static final int REQUEST_CODE_PERSON_BIND = 1001;  // 人证绑定请求码
     private static final int REQUEST_CODE_CAR_BIND = 1002;  // 车证绑定请求码
+    private static final String ACTION_FUN_KEY = "android.rfid.FUN_KEY";
+    private static final int HANDLE_KEY_CODE = 137;
+    private static final long HANDLE_DEBOUNCE_MS = 600L;
 
     private ImageView ivResultIcon;
     private TextView tvResultTitle;
@@ -87,14 +96,35 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
     private CarCertificateVo carDTO;  // 保存车证DTO
     private CameraHelper cameraHelper;
     private String latestPhotoPath;
+    private boolean isCarDetail;
+    private BroadcastReceiver funKeyReceiver;
+    private long lastHandleTriggerElapsedMs = 0L;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_verification_detail);
+        isCarDetail = getIntent().getBooleanExtra(CommonConfig.EXTRA_IS_CAR, false);
         initToolbar();
         initViews();
         renderResult((VerificationResult) getIntent().getSerializableExtra(EXTRA_RESULT));
+        if (!isCarDetail && currentResult != null) {
+            isCarDetail = currentResult.isVehicle();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (isCarDetail) {
+            registerFunKeyReceiver();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        unregisterFunKeyReceiver();
+        super.onPause();
     }
 
     private void initToolbar() {
@@ -152,10 +182,61 @@ public class CarAndPersonDetailActivity extends AppCompatActivity {
         Button btnBack = findViewById(R.id.btn_back);
         Button btnRetry = findViewById(R.id.btn_retry);
         btnBack.setOnClickListener(v -> finish());
-        btnRetry.setOnClickListener(v -> {
-            setResult(RESULT_OK, new Intent().putExtra("retry", true));
-            finish();
-        });
+        btnRetry.setOnClickListener(v -> finishWithRetry());
+    }
+
+    /** 重新核验：通知上一页清空芯片后回到读卡状态 */
+    private void finishWithRetry() {
+        setResult(RESULT_OK, new Intent().putExtra(EXTRA_RETRY, true));
+        finish();
+    }
+
+    private void registerFunKeyReceiver() {
+        if (funKeyReceiver != null) {
+            return;
+        }
+        funKeyReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent == null || !ACTION_FUN_KEY.equals(intent.getAction())) {
+                    return;
+                }
+                int keyCode = intent.getIntExtra("keyCode", -1);
+                boolean keyDown = intent.getBooleanExtra("keydown", false);
+                if (!keyDown || keyCode != HANDLE_KEY_CODE) {
+                    return;
+                }
+                long now = SystemClock.elapsedRealtime();
+                if (now - lastHandleTriggerElapsedMs < HANDLE_DEBOUNCE_MS) {
+                    return;
+                }
+                lastHandleTriggerElapsedMs = now;
+                runOnUiThread(() -> finishWithRetry());
+            }
+        };
+        IntentFilter filter = new IntentFilter(ACTION_FUN_KEY);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(funKeyReceiver, filter, Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(funKeyReceiver, filter);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "register FUN_KEY receiver failed", e);
+            funKeyReceiver = null;
+        }
+    }
+
+    private void unregisterFunKeyReceiver() {
+        if (funKeyReceiver == null) {
+            return;
+        }
+        try {
+            unregisterReceiver(funKeyReceiver);
+        } catch (Exception e) {
+            Log.w(TAG, "unregister FUN_KEY receiver failed", e);
+        }
+        funKeyReceiver = null;
     }
 
     private void renderResult(@Nullable VerificationResult result) {

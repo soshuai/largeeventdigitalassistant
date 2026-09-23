@@ -59,6 +59,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     private static final int HANDLE_KEY_CODE = 137;
     /** 手柄连发/长按防抖，与点按感应区一样只触发一次盘点 */
     private static final long HANDLE_DEBOUNCE_MS = 600L;
+    private static final int REQUEST_CODE_CAR_DETAIL = 2101;
 
     private TextView tvVehicleStatus;
     private Button btnVerify;
@@ -134,12 +135,12 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
                 int keyCode = intent.getIntExtra("keyCode", -1);
                 boolean keyDown = intent.getBooleanExtra("keydown", false);
                 Log.i(TAG, "FUN_KEY received keyCode=" + keyCode + " keydown=" + keyDown);
-                // 仅接受实测手柄键；松开忽略。切到主线程，与点击感应区同一套 startUhfInventory
+                // 仅接受实测手柄键；松开忽略
                 if (!keyDown || keyCode != HANDLE_KEY_CODE) {
                     return;
                 }
                 if (mainHandler != null) {
-                    mainHandler.post(() -> startUhfInventoryFromHandle());
+                    mainHandler.post(() -> onHandleKeyPressed());
                 }
             }
         };
@@ -174,16 +175,41 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     }
 
     /**
-     * 手柄按下：防抖后走与点击感应区完全相同的盘点方法。
+     * 手柄按下：未读芯片 → 读卡；已读芯片 → 开始核验。
      */
-    private void startUhfInventoryFromHandle() {
+    private void onHandleKeyPressed() {
         long now = SystemClock.elapsedRealtime();
         if (now - lastHandleTriggerElapsedMs < HANDLE_DEBOUNCE_MS) {
             Log.d(TAG, "FUN_KEY debounced, ignore duplicate trigger");
             return;
         }
         lastHandleTriggerElapsedMs = now;
-        startUhfInventory("handle_fun_key");
+        if (verifying || isReading) {
+            Log.d(TAG, "FUN_KEY ignored, verifying=" + verifying + " isReading=" + isReading);
+            return;
+        }
+        if (TextUtils.isEmpty(currentChipId)) {
+            startUhfInventory("handle_fun_key");
+        } else {
+            startVerification();
+        }
+    }
+
+    /** 清空已读芯片，回到待读卡状态（重新核验返回时调用） */
+    private void resetChipState() {
+        currentChipId = null;
+        currentCarDTO = null;
+        currentEpcList.clear();
+        verifying = false;
+        if (btnVerify != null) {
+            btnVerify.setEnabled(isAppInitialized());
+            btnVerify.setText(isAppInitialized() ? "开始核验" : "请先初始化");
+        }
+        if (tvVehicleStatus != null) {
+            tvVehicleStatus.setText(isAppInitialized()
+                    ? "请点击上方按钮或按手柄读取车证"
+                    : "请先到首页完成初始化");
+        }
     }
 
     /**
@@ -233,10 +259,6 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
         }
 
         return false;
-    }
-
-    private void startUhfInventory() {
-        startUhfInventory("unspecified");
     }
 
     /**
@@ -696,7 +718,21 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
             intent.putExtra("car_dto", carDTO);
         }
         intent.putExtra(CommonConfig.EXTRA_IS_CAR, true);
-        startActivity(intent);
+        startActivityForResult(intent, REQUEST_CODE_CAR_DETAIL);
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_CODE_CAR_DETAIL) {
+            return;
+        }
+        // 详情页点「重新核验」或手柄触发重新核验：清空已读芯片，回到读卡状态
+        if (resultCode == android.app.Activity.RESULT_OK
+                && data != null
+                && data.getBooleanExtra(CarAndPersonDetailActivity.EXTRA_RETRY, false)) {
+            resetChipState();
+        }
     }
 
     private String getRequiredPermissionSummary(CarCertificateVo carDTO) {
