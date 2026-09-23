@@ -6,6 +6,8 @@ import android.text.TextUtils;
 
 import androidx.annotation.Nullable;
 
+import com.largeevent.management.widget.CommonConfig;
+
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -60,8 +62,6 @@ public class AppPreferences {
      * 活动设置页当前选择的业务模块：1 人证 / 2 车证
      */
     private static final String KEY_MODULE_TYPE = "key_module_type";
-
-    private static final boolean test = false;
 
     private static String scopedKey(String prefix, String activeId, int moduleType) {
         return prefix + "_" + activeId + "_m" + ModuleType.normalize(moduleType);
@@ -533,7 +533,7 @@ public class AppPreferences {
      */
     public static String ensureDeviceCode(Context context) {
         String code = getDeviceCode(context);
-        if ( test) {
+        if (CommonConfig.TEST) {
             code = "DEV_1788616993593";
         }
         if (TextUtils.isEmpty(code)) {
