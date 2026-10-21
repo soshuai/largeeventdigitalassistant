@@ -295,7 +295,7 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
             List<String> newEpcList = new ArrayList<>();
             if (CommonConfig.TEST) {
                 //E2827802000000003667B210 E28011B0A503007A28B8EE2C
-                newEpcList.add("E2827802000000003667B210");
+                newEpcList.add("E2827802000000003667AD9E");
             } else {
                 if (!ensureUhfReady()) {
                     postInventoryResult(new ArrayList<>(), "UHF模块初始化失败");
