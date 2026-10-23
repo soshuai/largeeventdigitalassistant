@@ -455,7 +455,11 @@ public final class PersonVerificationHelper {
                 "yyyy-MM-dd HH:mm:ss",
                 "yyyy-MM-dd HH:mm",
                 "yyyy-MM-dd'T'HH:mm:ss",
+                "yyyy.MM.dd HH:mm:ss",
+                "yyyy.MM.dd HH:mm",
                 "yyyy-MM-dd",
+                "yyyy.MM.dd",
+                "yyyy.M.d",
                 "yyyyMMdd"
         };
         for (String pattern : patterns) {
@@ -466,9 +470,8 @@ public final class PersonVerificationHelper {
                 if (parsed == null) {
                     continue;
                 }
-                if (treatDateOnlyAsEndOfDay
-                        && "yyyy-MM-dd".equals(pattern)
-                        && raw.length() <= 10) {
+                boolean dateOnly = !pattern.contains("HH") && !raw.contains(":");
+                if (treatDateOnlyAsEndOfDay && dateOnly) {
                     Calendar cal = Calendar.getInstance();
                     cal.setTime(parsed);
                     cal.set(Calendar.HOUR_OF_DAY, 23);

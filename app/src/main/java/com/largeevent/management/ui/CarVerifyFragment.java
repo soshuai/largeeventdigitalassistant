@@ -59,6 +59,8 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     private static final int HANDLE_KEY_CODE = 137;
     /** 手柄连发/长按防抖，与点按感应区一样只触发一次盘点 */
     private static final long HANDLE_DEBOUNCE_MS = 600L;
+    /** 单次盘点超时，防止 UHF 卡住后一直停在「正在读取」 */
+    private static final long INVENTORY_TIMEOUT_MS = 2500L;
     private static final int REQUEST_CODE_CAR_DETAIL = 2101;
 
     private TextView tvVehicleStatus;
@@ -74,6 +76,8 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     private Handler mainHandler;
     private BroadcastReceiver funKeyReceiver;
     private long lastHandleTriggerElapsedMs = 0L;
+    private int inventorySeq = 0;
+    private final Runnable inventoryTimeoutRunnable = this::onInventoryTimeout;
 
     @Nullable
     @Override
@@ -117,6 +121,8 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     @Override
     public void onPause() {
         unregisterFunKeyReceiver();
+        cancelInventoryWatchdog();
+        stopUhfInventory();
         super.onPause();
     }
 
@@ -182,8 +188,12 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
             return;
         }
         lastHandleTriggerElapsedMs = now;
-        if (verifying || isReading) {
-            Log.d(TAG, "FUN_KEY ignored, verifying=" + verifying + " isReading=" + isReading);
+        if (verifying) {
+            Log.d(TAG, "FUN_KEY ignored, verifying");
+            return;
+        }
+        if (isReading) {
+            Log.d(TAG, "FUN_KEY ignored, still reading chip");
             return;
         }
         if (TextUtils.isEmpty(currentChipId)) {
@@ -195,10 +205,13 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
 
     /** 清空已读芯片，回到待读卡状态（重新核验返回时调用） */
     private void resetChipState() {
+        cancelInventoryWatchdog();
+        isReading = false;
         currentChipId = null;
         currentCarDTO = null;
         currentEpcList.clear();
         verifying = false;
+        stopUhfInventory();
         if (btnVerify != null) {
             btnVerify.setEnabled(isAppInitialized());
             btnVerify.setText(isAppInitialized() ? "开始核验" : "请先初始化");
@@ -288,23 +301,28 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
             return;
         }
         isReading = true;
+        final int seq = ++inventorySeq;
         if (tvVehicleStatus != null) {
             tvVehicleStatus.setText("正在读取车证...");
         }
+        if (mainHandler != null) {
+            mainHandler.removeCallbacks(inventoryTimeoutRunnable);
+            mainHandler.postDelayed(inventoryTimeoutRunnable, INVENTORY_TIMEOUT_MS);
+        }
         inventoryExecutor.execute(() -> {
             List<String> newEpcList = new ArrayList<>();
-            if (CommonConfig.TEST) {
-                //E2827802000000003667B210 E28011B0A503007A28B8EE2C
-                newEpcList.add("E2827802000000003667AD9E");
-            } else {
-                if (!ensureUhfReady()) {
-                    postInventoryResult(new ArrayList<>(), "UHF模块初始化失败");
-                    return;
-                }
-                try {
-                    List<Reader.TAGINFO> tagInfos = uhfManager.tagInventoryRealTime();
+            try {
+                if (CommonConfig.TEST) {
+                    //E2827802000000003667B210 E28011B0A503007A28B8EE2C
+                    newEpcList.add("E2827802000000003667AD9E");
+                } else {
+                    if (!ensureUhfReady()) {
+                        postInventoryResult(seq, new ArrayList<>(), "UHF模块初始化失败");
+                        return;
+                    }
+                    List<Reader.TAGINFO> tagInfos = uhfManager.tagInventoryByTimer((short) 300);
                     if (tagInfos == null || tagInfos.isEmpty()) {
-                        tagInfos = uhfManager.tagInventoryByTimer((short) 50);
+                        tagInfos = uhfManager.tagInventoryByTimer((short) 200);
                     }
                     if (tagInfos != null) {
                         for (Reader.TAGINFO info : tagInfos) {
@@ -315,20 +333,63 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
                             }
                         }
                     }
-                } catch (Exception e) {
-                    postInventoryResult(new ArrayList<>(), "读取失败：" + e.getMessage());
-                    return;
                 }
+                postInventoryResult(seq, newEpcList, newEpcList.isEmpty() ? "未读取到车证信息" : null);
+            } catch (Exception e) {
+                postInventoryResult(seq, new ArrayList<>(), "读取失败：" + e.getMessage());
+            } finally {
+                stopUhfInventory();
             }
-            postInventoryResult(newEpcList, newEpcList.isEmpty() ? "未读取到车证信息" : null);
         });
     }
 
-    private void postInventoryResult(List<String> epcs, @Nullable String errorMsg) {
+    private void onInventoryTimeout() {
+        if (!isReading) {
+            return;
+        }
+        Log.w(TAG, "UHF inventory timeout, force reset reading state");
+        inventorySeq++;
+        isReading = false;
+        stopUhfInventory();
+        if (isAdded() && tvVehicleStatus != null) {
+            tvVehicleStatus.setText("读取超时，请再按手柄读卡");
+        }
+        if (isAdded() && getContext() != null) {
+            Toast.makeText(requireContext(), "读取超时，请再按一次手柄", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void cancelInventoryWatchdog() {
+        if (mainHandler != null) {
+            mainHandler.removeCallbacks(inventoryTimeoutRunnable);
+        }
+    }
+
+    /** 停止盘点，避免手柄连按后 UHF 一直占着读头 */
+    private void stopUhfInventory() {
+        if (uhfManager == null) {
+            return;
+        }
+        try {
+            uhfManager.stopTagInventory();
+        } catch (Exception ignored) {
+        }
+        try {
+            uhfManager.asyncStopReading();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void postInventoryResult(int seq, List<String> epcs, @Nullable String errorMsg) {
         if (mainHandler == null) {
+            isReading = false;
             return;
         }
         mainHandler.post(() -> {
+            if (seq != inventorySeq) {
+                return;
+            }
+            cancelInventoryWatchdog();
             isReading = false;
             if (!isAdded() || getContext() == null) {
                 return;
@@ -716,6 +777,9 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
             intent.putExtra("car_dto", carDTO);
         }
         intent.putExtra(CommonConfig.EXTRA_IS_CAR, true);
+        cancelInventoryWatchdog();
+        isReading = false;
+        stopUhfInventory();
         startActivityForResult(intent, REQUEST_CODE_CAR_DETAIL);
     }
 
@@ -778,6 +842,8 @@ public class CarVerifyFragment extends BaseFragment implements NfcCallback {
     @Override
     public void onDestroyView() {
         unregisterFunKeyReceiver();
+        cancelInventoryWatchdog();
+        stopUhfInventory();
         super.onDestroyView();
         if (initializationRepository != null) {
             initializationRepository.close();

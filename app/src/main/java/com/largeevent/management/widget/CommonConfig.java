@@ -10,6 +10,6 @@ public class CommonConfig {
 
     public static final String EXTRA_IS_CAR = "extra_is_car";
 
-    public static final boolean TEST = true;
+    public static final boolean TEST = false;
 
 }
